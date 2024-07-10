@@ -139,3 +139,45 @@ def add_text(
 def save_plot(path, **kw):
     """Save the current figure without any white margin."""
     plt.savefig(path, bbox_inches="tight", pad_inches=0, **kw)
+
+def plot_a_sphere(location, ax, radius=0.01):
+    u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
+    x = radius * np.cos(u) * np.sin(v) + location[0]  # Offset by location[0]
+    y = radius * np.sin(u) * np.sin(v) + location[1]  # Offset by location[1]
+    z = radius * np.cos(v) + location[2]              # Offset by location[2]
+    ax.plot_surface(x, y, z, color='cyan', alpha=0.6)  # alpha for transparency
+
+def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0):
+    fig = plt.figure(figsize=(20, 16))
+    ax = fig.add_subplot(111, projection='3d')
+    # plot object origin
+    t = np.array([0, 0, 0])
+    ax.quiver(*t, *[1, 0, 0], color='r', length=0.3, normalize=False)
+    ax.quiver(*t, *[0, 1, 0], color='g', length=0.3, normalize=False)
+    ax.quiver(*t, *[0, 0 ,1], color='b', length=0.3, normalize=False)
+    ax.text(*t, "o", fontsize=12, color='black')
+
+    for c2w, label in zip(data['c2ws'], data['labels']):
+        t = c2w[:3, 3]
+        x = c2w[:3,0] * cam_axis_scale
+        y = c2w[:3,1] * cam_axis_scale
+        z = c2w[:3,2] * cam_axis_scale * 3
+        ax.quiver(*t, *x[:3], color='r', length=0.3, normalize=False)
+        ax.quiver(*t, *y[:3], color='g', length=0.3, normalize=False)
+        ax.quiver(*t, *z[:3], color='b', length=0.3, normalize=False)
+        ax.text(*t, label, fontsize=12, color='magenta')
+        if label.startswith('gen'):
+            plot_a_sphere(t, ax)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title('3D Camera Positions and Orientations')
+    # Set plot limits
+    limit = axis_limit
+    ax.set_xlim([-limit, limit])
+    ax.set_ylim([-limit, limit])
+    ax.set_zlim([-limit, limit])
+    ax.grid(False)
+    plt.tight_layout()
+    plt.show()    

@@ -6,13 +6,18 @@ from pathlib import Path
 from utils_simba.graphic import focal2fov, fov2focal
 from typing import NamedTuple
 from rich.console import Console
+import math
 CONSOLE = Console(width=120)
 
 class CameraInfo(NamedTuple):
     uid: int
-    w2c_cv: np.array
+    c2w4x4: np.array
     fl_x: np.array
     fl_y: np.array
+    height: int
+    width: int
+    fov_x: float
+    fov_y: float
     image_name: str
 
 def readCamerasFromBlenderJson(path, transformsfile):
@@ -22,6 +27,10 @@ def readCamerasFromBlenderJson(path, transformsfile):
         meta = json.load(json_file)
         num_skipped_image_filenames = 0
         fl_x, fl_y = get_focal_lengths(meta)
+        width = meta["w"]
+        height = meta["h"]
+        fov_x = math.atan(width / (2 * fl_y)) * 2
+        fov_y = math.atan(height / (2 * fl_y)) * 2
         gl_to_cv_t = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         for idx, frame in enumerate(meta["frames"]):
             fname = path / Path(frame["file_path"])
@@ -29,9 +38,8 @@ def readCamerasFromBlenderJson(path, transformsfile):
                 num_skipped_image_filenames += 1
             else:
                 c2w_gl = np.array(frame["transform_matrix"])
-                w2c_gl = np.linalg.inv(c2w_gl)
-                w2c_cv = gl_to_cv_t @ w2c_gl
-                cam_infos.append(CameraInfo(uid=idx, w2c_cv=w2c_cv, fl_x=fl_x, fl_y=fl_y, image_name=fname))
+                cam_infos.append(CameraInfo(uid=idx, c2w4x4=c2w_gl, fl_x=fl_x, fl_y=fl_y, image_name=fname, 
+                                            height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         if num_skipped_image_filenames >= 0:
             CONSOLE.print(f"Skipping {num_skipped_image_filenames} files in dataset {path}.")
         assert (

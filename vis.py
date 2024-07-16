@@ -156,8 +156,7 @@ def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0):
     ax.quiver(*t, *[0, 1, 0], color='g', length=0.3, normalize=False)
     ax.quiver(*t, *[0, 0 ,1], color='b', length=0.3, normalize=False)
     ax.text(*t, "o", fontsize=12, color='black')
-
-    for c2w, label in zip(data['c2ws'], data['labels']):
+    for i, c2w in enumerate(data['c2ws']):
         t = c2w[:3, 3]
         x = c2w[:3,0] * cam_axis_scale
         y = c2w[:3,1] * cam_axis_scale
@@ -165,6 +164,10 @@ def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0):
         ax.quiver(*t, *x[:3], color='r', length=0.3, normalize=False)
         ax.quiver(*t, *y[:3], color='g', length=0.3, normalize=False)
         ax.quiver(*t, *z[:3], color='b', length=0.3, normalize=False)
+        try:
+            label = data['labels'][i]
+        except:
+            label = f"{i}"
         ax.text(*t, label, fontsize=12, color='magenta')
         if label.startswith('gen'):
             plot_a_sphere(t, ax)

@@ -22,6 +22,8 @@ class CameraInfo(NamedTuple):
     width: int
     fov_x: float
     fov_y: float
+    cx: float
+    cy: float
     image_name: str
 
 def readCamerasFromBlenderJson(config):
@@ -39,6 +41,7 @@ def readCamerasFromBlenderJson(config):
         height = meta["h"]
         fov_x = math.atan(width / (2 * fl_y)) * 2
         fov_y = math.atan(height / (2 * fl_y)) * 2
+        cx, cy = width / 2, height / 2
         cvc2blc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         blw2cvw = np.array([[0, 1, 0, 0],[0, 0 , -1, 0], [-1, 0, 0, 0], [0, 0, 0, 1]])
         for idx, frame in enumerate(meta["frames"]):
@@ -56,7 +59,7 @@ def readCamerasFromBlenderJson(config):
                     c2w_final = cvc2blw
                 elif cam_type == "blc2blw":
                     c2w_final = blc2blw
-                cam_infos.append(CameraInfo(uid=idx, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, image_name=fname, 
+                cam_infos.append(CameraInfo(uid=idx, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, image_name=fname, 
                                             height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         if num_skipped_image_filenames >= 0:
             CONSOLE.print(f"Skipping {num_skipped_image_filenames} files in dataset {path}.")
@@ -134,6 +137,7 @@ def readCamerasFromRealImageWithGTPose(config):
         if cam_infos == []:
             K = meta['camMat']
             fl_x, fl_y = K[0, 0], K[1, 1]
+            cx, cy = K[0, 2], K[1, 2]
             rgba_imgae = cv2.imread(rgba_f, cv2.IMREAD_UNCHANGED)
             height, width = rgba_imgae.shape[:2]
             fov_x = math.atan(width / (2 * fl_x)) * 2
@@ -152,7 +156,7 @@ def readCamerasFromRealImageWithGTPose(config):
             cvw2cvc = glc2cvc @ cvw2glc
             cvc2cvw = np.linalg.inv(cvw2cvc)
             c2w_final = cvc2cvw
-        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, image_name=rgba_f, 
+        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, image_name=rgba_f, 
                             height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         
     return cam_infos

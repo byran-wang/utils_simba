@@ -164,6 +164,58 @@ def readCamerasFromRealImageWithGTPose(config):
         
     return cam_infos
 
+def preprocessCamerasFromRealImageWithColmapPose(config):
+    rgb_all = sorted(glob(f"{config['rgb_path']}/*.jpg"))
+    pose_all = sorted(glob(f"{config['pose_path']}/*.pkl"))
+    mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
+    out_dir = config['out_dir']
+    images_dir = os.path.join(out_dir, "images")
+    masks_dir = os.path.join(out_dir, "masks")
+    poses_dir = os.path.join(out_dir, "poses")
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(images_dir, exist_ok=True)
+    os.makedirs(masks_dir, exist_ok=True)
+    os.makedirs(poses_dir, exist_ok=True)
+
+    if config.end_frame == -1:
+        end_fname = rgb_all[-1]
+        end = int(op.basename(end_fname).split(".")[0].split("_rgba")[0])
+        config.end_frame = end
+    assert config.end_frame > config.start_frame    
+
+    frame_range = list(range(config.start_frame, config.end_frame, config.frame_interval))
+    valid_frames = []
+
+    for i in frame_range:
+        rgb = os.path.join(config['rgb_path'], f"{i:04d}.jpg")
+        if (rgb in rgb_all):
+            pose = os.path.join(config['pose_path'], f"{i:04d}.pkl")
+            if pose in pose_all:
+                mask = os.path.join(config['mask_path'], f"{i:05d}.png")
+                if mask in mask_all:
+                    if i not in config.exclude_frames:
+                        valid_frames.append([rgb, pose, mask])
+                else:
+                    print(f"Warning: {mask} not found")
+            else:
+                print(f"Warning: {pose} not found")
+        else:
+            print(f"Warning: {rgb} not found")
+    assert len(valid_frames) > 0
+
+    for ci, [rgb_f, pose_f, mask_f] in enumerate(valid_frames):
+        rgb_f_out = os.path.join(images_dir, f"{ci:04d}.jpg")
+        mask_f_out = os.path.join(masks_dir, f"{ci:04d}.png")
+        pose_f_out = os.path.join(poses_dir, f"{ci:04d}.pkl")
+        shutil.copy(rgb_f, rgb_f_out)
+        shutil.copy(mask_f, mask_f_out)
+        shutil.copy(pose_f, pose_f_out)
+    breakpoint()
+    json_file = os.path.join(out_dir, "map.json")
+    with open(json_file, 'w') as f:
+        for i, entry in enumerate(valid_frames):
+            rgb, pose, mask = entry
+            f.write(f"{i:04d} {rgb} {mask} {pose}\n")        
 def readCamerasFromRealImageWithColmapPose(config):
     
     cam_type = config.cam_type.lower() # "cvc2cvw" or "cvc2blw" or "blc2blw"
@@ -211,3 +263,19 @@ def readCamerasFromRealImageWithColmapPose(config):
                         height=h, width=w, fov_x=f, fov_y=f)
         
     return cam_infos
+
+scene = "MC1"
+config = {
+    "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/rgb/",
+    "pose_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/meta/",
+    "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
+    "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_gt_poose/" + scene,
+    "start_frame": 0,
+    "end_frame": -1,
+    "frame_interval": 5,
+    "exclude_frames": [],
+}
+breakpoint()
+from attrdict import AttrDict
+config = AttrDict(config)
+preprocessCamerasFromRealImageWithColmapPose(config)

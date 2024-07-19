@@ -147,7 +147,7 @@ def plot_a_sphere(location, ax, radius=0.01):
     z = radius * np.cos(v) + location[2]              # Offset by location[2]
     ax.plot_surface(x, y, z, color='cyan', alpha=0.6)  # alpha for transparency
 
-def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0):
+def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0, z_scale=10):
     fig = plt.figure(figsize=(20, 16))
     ax = fig.add_subplot(111, projection='3d')
     # plot object origin
@@ -160,7 +160,7 @@ def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0):
         t = c2w[:3, 3]
         x = c2w[:3,0] * cam_axis_scale
         y = c2w[:3,1] * cam_axis_scale
-        z = c2w[:3,2] * cam_axis_scale * 3
+        z = c2w[:3,2] * cam_axis_scale * z_scale
         ax.quiver(*t, *x[:3], color='r', length=0.3, normalize=False)
         ax.quiver(*t, *y[:3], color='g', length=0.3, normalize=False)
         ax.quiver(*t, *z[:3], color='b', length=0.3, normalize=False)

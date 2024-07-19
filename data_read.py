@@ -3,7 +3,6 @@ import numpy as np
 import json
 import os
 from pathlib import Path
-from utils_simba.graphic import focal2fov, fov2focal
 from typing import NamedTuple
 from rich.console import Console
 import math
@@ -11,6 +10,9 @@ from glob import glob
 import pickle
 import cv2
 import os.path as op
+import shutil
+import sys
+sys.path.append("/home/simba/Documents/project/diff_object_mary/threestudio")
 from threestudio.data import colmap_read_model as read_model
 CONSOLE = Console(width=120)
 
@@ -194,6 +196,10 @@ def preprocessCamerasFromRealImageWithColmapPose(config):
                 mask = os.path.join(config['mask_path'], f"{i:05d}.png")
                 if mask in mask_all:
                     if i not in config.exclude_frames:
+                        meta = pickle.load(open(pose,'rb'))
+                        if meta['objTrans'] is None or meta['objRot'] is None or meta['camMat'] is None:
+                            print(f"Warning: Pose not found for Meta file {pose}, and skip frame {rgb}")
+                            continue                        
                         valid_frames.append([rgb, pose, mask])
                 else:
                     print(f"Warning: {mask} not found")
@@ -210,12 +216,54 @@ def preprocessCamerasFromRealImageWithColmapPose(config):
         shutil.copy(rgb_f, rgb_f_out)
         shutil.copy(mask_f, mask_f_out)
         shutil.copy(pose_f, pose_f_out)
-    breakpoint()
     json_file = os.path.join(out_dir, "map.json")
     with open(json_file, 'w') as f:
         for i, entry in enumerate(valid_frames):
             rgb, pose, mask = entry
             f.write(f"{i:04d} {rgb} {mask} {pose}\n")        
+# after preprocessCamerasFromRealImageWithColmapPose is called, the following code can be used to read the camera information
+def readCamerasFromRealImageWithGTPose_1(config):
+    cam_type = config.cam_type.lower() # "cvc2cvw" or "cvc2blw" or "blc2blw"
+    cam_infos = []
+    rgb_all = sorted(glob(f"{config['rgb_path']}/*.jpg"))
+    pose_all = sorted(glob(f"{config['pose_path']}/*.pkl"))
+    mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
+
+    K = None
+    c2w_finals = []
+    for ci, [rgb_f, pose_f, mask_f] in enumerate(zip(rgb_all, pose_all, mask_all)):
+        meta = pickle.load(open(pose_f,'rb'))
+        if meta['objTrans'] is None or meta['objRot'] is None or meta['camMat'] is None:
+            print(f"Warning: Pose not found for Meta file {pose_f}, and skip frame {rgb_f}")
+            assert False
+        if ci == 0:
+            K = meta['camMat']
+            fl_x, fl_y = K[0, 0], K[1, 1]
+            cx, cy = K[0, 2], K[1, 2]
+            rgba_imgae = cv2.imread(rgb_f)
+            height, width = rgba_imgae.shape[:2]
+            fov_x = math.atan(width / (2 * fl_x)) * 2
+            fov_y = math.atan(height / (2 * fl_y)) * 2
+            cvw2blw = np.array([[0, 0, -1, 0],[1, 0 , 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]])
+            blc2glc = np.array([[1, 0, 0, 0],[0, 1 , 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+            glc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        cvw2glc = np.eye(4)
+        cvw2glc[:3,3] = meta['objTrans']
+        cvw2glc[:3,:3] = cv2.Rodrigues(meta['objRot'].reshape(3))[0]
+        glc2cvw = np.linalg.inv(cvw2glc)
+        if cam_type == "blc2blw":
+            blc2blw = cvw2blw @ glc2cvw @ blc2glc
+            c2w_final = blc2blw
+        if cam_type == "cvc2cvw":
+            cvw2cvc = glc2cvc @ cvw2glc
+            cvc2cvw = np.linalg.inv(cvw2cvc)
+            c2w_final = cvc2cvw
+        c2w_finals.append(c2w_final)
+    cam_infos = CameraInfo(uid=None, c2w4x4=np.array(c2w_finals), fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, image_name=rgb_all, mask_name=mask_all, pts3d=None,
+                        height=height, width=width, fov_x=fov_x, fov_y=fov_y)
+        
+    return cam_infos
+
 def readCamerasFromRealImageWithColmapPose(config):
     
     cam_type = config.cam_type.lower() # "cvc2cvw" or "cvc2blw" or "blc2blw"
@@ -264,18 +312,18 @@ def readCamerasFromRealImageWithColmapPose(config):
         
     return cam_infos
 
-scene = "MC1"
-config = {
-    "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/rgb/",
-    "pose_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/meta/",
-    "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
-    "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_gt_poose/" + scene,
-    "start_frame": 0,
-    "end_frame": -1,
-    "frame_interval": 5,
-    "exclude_frames": [],
-}
-breakpoint()
-from attrdict import AttrDict
-config = AttrDict(config)
-preprocessCamerasFromRealImageWithColmapPose(config)
+if __name__ == "__main__":
+    scene = "MC1"
+    config = {
+        "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/rgb/",
+        "pose_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/meta/",
+        "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
+        "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_gt_poose/" + scene,
+        "start_frame": 0,
+        "end_frame": -1,
+        "frame_interval": 5,
+        "exclude_frames": [],
+    }
+    from attrdict import AttrDict
+    config = AttrDict(config)
+    preprocessCamerasFromRealImageWithColmapPose(config)    

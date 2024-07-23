@@ -10,6 +10,7 @@ import matplotlib
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 
 
 def cm_RdGn(x):
@@ -183,4 +184,63 @@ def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0, z_scale=10):
     ax.set_zlim([-limit, limit])
     ax.grid(False)
     plt.tight_layout()
-    plt.show()    
+    plt.show()
+    
+
+from pytorch3d.renderer import PerspectiveCameras, RayBundle
+from pytorch3d.io import load_objs_as_meshes
+from pytorch3d.vis import (  # noqa: F401
+    plot_scene,
+)
+from pytorch3d.vis.plotly_vis import AxisArgs
+from pytorch3d.renderer import ray_bundle_to_ray_points
+from pytorch3d.structures import Pointclouds    
+def show_scene(c2ws4x4, rays_o, rays_d, cfg):
+    mesh_path = cfg.mesh_path
+    min_depth = cfg.min_depth
+    max_depth = cfg.max_depth
+    n_pts_per_ray = cfg.n_pts_per_ray
+    camera_trace = {}
+    if c2ws4x4.shape[-2:] == (3, 4):
+        new_row = torch.tensor([0, 0, 0, 1])[None,None]
+        c2ws4x4 = torch.cat((c2ws4x4, new_row.repeat(c2ws4x4.shape[0], 1, 1)), dim=1)
+    for ci, c2w in enumerate(c2ws4x4):
+        w2c = c2w.inverse()
+        R = (w2c[:3, :3].T)[None] # transpose due to row-major
+        T = w2c[:3, 3][None]
+        cam = PerspectiveCameras(R=R, T=T)
+        camera_trace[f"camera_{ci:03d}"] = cam
+    if mesh_path is not None:
+        meshes = load_objs_as_meshes(mesh_path, create_texture_atlas=cfg.show_mesh_texture, texture_atlas_size=1)
+    else:
+        meshes = None
+    
+    rays = []
+    for origin, dir in zip(rays_o, rays_d):
+        origin = origin.view(-1, 3)
+        dir = dir.view(-1, 3)
+        n_rays = origin.shape[0]
+        depth = torch.linspace(min_depth, max_depth, n_pts_per_ray)[None].repeat(n_rays, 1)
+        ray = RayBundle(origins=origin[None],
+                        xys=None,
+                        directions=dir[None],
+                        lengths=depth)
+        rays.append(ray)
+
+    ray_pts_trace = {}
+    for ci, ray in enumerate(rays):
+        pc = Pointclouds(ray_bundle_to_ray_points(ray).detach().cpu().view(1, -1, 3))
+        ray_pts_trace[f"ray_pts_{ci:03d}"] = pc
+    
+    mesh_trace = {}
+    if meshes is not None:
+        for mi, mesh in enumerate(meshes):
+            mesh_trace[f"mesh_{mi:03d}"] = mesh
+        scene = {"scene": {**camera_trace, **ray_pts_trace, **mesh_trace}}
+    else:
+        scene = {"scene": {**camera_trace, **ray_pts_trace}}
+    fig = plot_scene(scene,
+                    camera_scale = 0.1,
+                    axis_args = AxisArgs(showline=True, showgrid=True, zeroline=True, showticklabels=True, backgroundcolor="rgb(220,255,228)"),
+                )
+    fig.show()             

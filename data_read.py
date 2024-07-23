@@ -25,9 +25,40 @@ class CameraInfo(NamedTuple):
     fov_y: float
     cx: float
     cy: float
-    image_name: str
+    rgb_name: str
+    rgba_name: str
     mask_name: str
     pts3d: np.array
+
+def preprocessCamerasFromBlenderJson(config):  
+    path = config.json_path
+    transformsfile = config.json_file
+
+    images_dir = os.path.join(path, "rgbs")
+    masks_dir = os.path.join(path, "masks")
+
+    os.makedirs(path, exist_ok=True)
+    os.makedirs(images_dir, exist_ok=True)
+    os.makedirs(masks_dir, exist_ok=True)        
+    with open(os.path.join(path, transformsfile)) as json_file:
+        meta = json.load(json_file)
+        for idx, frame in enumerate(meta["frames"]):
+            rgba_f = os.path.join(path, frame["file_path"])
+            if not rgba_f:
+                num_skipped_image_filenames += 1
+            else:
+                rgba_image = cv2.imread(rgba_f, cv2.IMREAD_UNCHANGED)
+                rgb_image = rgba_image[:, :, :3]
+                mask_image = rgba_image[:, :, 3]
+                _, binary_mask = cv2.threshold(mask_image, 128, 255, cv2.THRESH_BINARY)
+                rgba_base_name = os.path.basename(rgba_f)
+                rgb_f = os.path.join(images_dir, rgba_base_name)
+                mask_f = os.path.join(masks_dir, rgba_base_name)
+                cv2.imwrite(rgb_f, rgb_image)
+                cv2.imwrite(mask_f, binary_mask)
+                print(f"Writing {rgb_f} and {mask_f}")
+
+
 
 def readCamerasFromBlenderJson(config):
     # Read the camera information from the transforms.json file
@@ -48,8 +79,11 @@ def readCamerasFromBlenderJson(config):
         cvc2blc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         blw2cvw = np.array([[0, 1, 0, 0],[0, 0 , -1, 0], [-1, 0, 0, 0], [0, 0, 0, 1]])
         for idx, frame in enumerate(meta["frames"]):
-            fname = path / Path(frame["file_path"])
-            if not fname:
+            rgba_f = os.path.join(path, frame["file_path"])
+            rgba_base_name = os.path.basename(rgba_f)
+            rgb_f = os.path.join(path, "rgbs", rgba_base_name)
+            mask_f = os.path.join(path, "masks", rgba_base_name)
+            if not rgba_f:
                 num_skipped_image_filenames += 1
             else:
                 blc2blw = np.array(frame["transform_matrix"])
@@ -62,7 +96,8 @@ def readCamerasFromBlenderJson(config):
                     c2w_final = cvc2blw
                 elif cam_type == "blc2blw":
                     c2w_final = blc2blw
-                cam_infos.append(CameraInfo(uid=idx, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, image_name=fname, mask_name=None, pts3d=None,
+                cam_infos.append(CameraInfo(uid=idx, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
+                                            rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
                                             height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         if num_skipped_image_filenames >= 0:
             CONSOLE.print(f"Skipping {num_skipped_image_filenames} files in dataset {path}.")
@@ -297,22 +332,23 @@ def preprocessCamerasFromRealImageWithGtPose(config):
 def readCamerasFromRealImageWithGTPose_1(config):
     cam_type = config.cam_type.lower() # "cvc2cvw" or "cvc2blw" or "blc2blw"
     cam_infos = []
-    rgb_all = sorted(glob(f"{config['rgb_path']}/*.jpg"))
+    rgb_all = sorted(glob(f"{config['rgb_path']}/*.png"))
     pose_all = sorted(glob(f"{config['pose_path']}/*.pkl"))
     mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
+    rgba_all = sorted(glob(f"{config['rgba_path']}/*.png"))
 
     K = None
-    c2w_finals = []
-    for ci, [rgb_f, pose_f, mask_f] in enumerate(zip(rgb_all, pose_all, mask_all)):
+    cam_infos = []
+    for ci, [rgb_f, rgba_f, mask_f, pose_f] in enumerate(zip(rgb_all, rgba_all, mask_all, pose_all)):
         meta = pickle.load(open(pose_f,'rb'))
         if meta['objTrans'] is None or meta['objRot'] is None or meta['camMat'] is None:
-            print(f"Warning: Pose not found for Meta file {pose_f}, and skip frame {rgb_f}")
+            print(f"Warning: Pose not found for Meta file {pose_f}, and skip frame {rgba_f}")
             assert False
         if ci == 0:
             K = meta['camMat']
             fl_x, fl_y = K[0, 0], K[1, 1]
             cx, cy = K[0, 2], K[1, 2]
-            rgba_imgae = cv2.imread(rgb_f)
+            rgba_imgae = cv2.imread(rgba_f)
             height, width = rgba_imgae.shape[:2]
             fov_x = math.atan(width / (2 * fl_x)) * 2
             fov_y = math.atan(height / (2 * fl_y)) * 2
@@ -330,17 +366,17 @@ def readCamerasFromRealImageWithGTPose_1(config):
             cvw2cvc = glc2cvc @ cvw2glc
             cvc2cvw = np.linalg.inv(cvw2cvc)
             c2w_final = cvc2cvw
-        c2w_finals.append(c2w_final)
-    cam_infos = CameraInfo(uid=None, c2w4x4=np.array(c2w_finals), fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, image_name=rgb_all, mask_name=mask_all, pts3d=None,
-                        height=height, width=width, fov_x=fov_x, fov_y=fov_y)
+        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
+                                    rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
+                                    height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         
     return cam_infos
 
-if __name__ == "__main__":
-    scene = "MC1"
+def RunPreprocessCamerasFromRealImageWithGtPose():
+    scene = "AP10"
     config = {
-        "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/rgb/",
-        "pose_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/meta/",
+        "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/evaluation/" + scene + "/rgb/",
+        "pose_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/evaluation/" + scene + "/meta/",
         "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
         "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_gt_poose/" + scene,
         "start_frame": 0,
@@ -350,4 +386,19 @@ if __name__ == "__main__":
     }
     from attrdict import AttrDict
     config = AttrDict(config)
-    preprocessCamerasFromRealImageWithGtPose(config)    
+    preprocessCamerasFromRealImageWithGtPose(config)   
+
+def RunPreprocessCamerasFromBlenderJson():
+    scene = "cracker_box"
+    config = {
+        "json_path": "/home/simba/Documents/project/hold-private/code/data/blender/cracker_box",
+        "json_file": "transforms_train.json",
+    }
+    from attrdict import AttrDict
+    config = AttrDict(config)
+    preprocessCamerasFromBlenderJson(config)   
+
+if __name__ == "__main__":
+    # RunPreprocessCamerasFromRealImageWithGtPose()
+    RunPreprocessCamerasFromBlenderJson()
+ 

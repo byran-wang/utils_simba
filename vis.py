@@ -210,7 +210,7 @@ def show_scene(c2ws4x4, rays_o, rays_d, cfg):
         T = w2c[:3, 3][None]
         cam = PerspectiveCameras(R=R, T=T)
         camera_trace[f"camera_{ci:03d}"] = cam
-    if mesh_path is not None:
+    if mesh_path != 'None':
         meshes = load_objs_as_meshes(mesh_path, create_texture_atlas=cfg.show_mesh_texture, texture_atlas_size=1)
     else:
         meshes = None

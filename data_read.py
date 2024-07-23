@@ -228,12 +228,14 @@ def preprocessCamerasFromRealImageWithGtPose(config):
     mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
     out_dir = config['out_dir']
     images_dir = os.path.join(out_dir, "images")
+    rgbas_dir = os.path.join(out_dir, "rgbas")
     masks_dir = os.path.join(out_dir, "masks")
     poses_dir = os.path.join(out_dir, "poses")
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(images_dir, exist_ok=True)
     os.makedirs(masks_dir, exist_ok=True)
     os.makedirs(poses_dir, exist_ok=True)
+    os.makedirs(rgbas_dir, exist_ok=True)
 
     if config.end_frame == -1:
         end_fname = rgb_all[-1]
@@ -245,38 +247,52 @@ def preprocessCamerasFromRealImageWithGtPose(config):
     valid_frames = []
 
     for i in frame_range:
-        rgb = os.path.join(config['rgb_path'], f"{i:04d}.jpg")
-        if (rgb in rgb_all):
-            pose = os.path.join(config['pose_path'], f"{i:04d}.pkl")
-            if pose in pose_all:
-                mask = os.path.join(config['mask_path'], f"{i:05d}.png")
-                if mask in mask_all:
+        rgb_f = os.path.join(config['rgb_path'], f"{i:04d}.jpg")
+        if (rgb_f in rgb_all):
+            pose_f = os.path.join(config['pose_path'], f"{i:04d}.pkl")
+            if pose_f in pose_all:
+                mask_f = os.path.join(config['mask_path'], f"{i:05d}.png")
+                if mask_f in mask_all:
                     if i not in config.exclude_frames:
-                        meta = pickle.load(open(pose,'rb'))
+                        meta = pickle.load(open(pose_f,'rb'))
                         if meta['objTrans'] is None or meta['objRot'] is None or meta['camMat'] is None:
-                            print(f"Warning: Pose not found for Meta file {pose}, and skip frame {rgb}")
-                            continue                        
-                        valid_frames.append([rgb, pose, mask])
+                            print(f"Warning: Pose not found for Meta file {pose_f}, and skip frame {rgb_f}")
+                            continue
+
+                        valid_frames.append([rgb_f, pose_f, mask_f])
                 else:
-                    print(f"Warning: {mask} not found")
+                    print(f"Warning: {mask_f} not found")
             else:
-                print(f"Warning: {pose} not found")
+                print(f"Warning: {pose_f} not found")
         else:
-            print(f"Warning: {rgb} not found")
+            print(f"Warning: {rgb_f} not found")
     assert len(valid_frames) > 0
 
     for ci, [rgb_f, pose_f, mask_f] in enumerate(valid_frames):
-        rgb_f_out = os.path.join(images_dir, f"{ci:04d}.jpg")
+        rgb_f_out = os.path.join(images_dir, f"{ci:04d}.png")
         mask_f_out = os.path.join(masks_dir, f"{ci:04d}.png")
         pose_f_out = os.path.join(poses_dir, f"{ci:04d}.pkl")
-        shutil.copy(rgb_f, rgb_f_out)
+        cv2.imwrite(rgb_f_out, cv2.imread(rgb_f))
         shutil.copy(mask_f, mask_f_out)
         shutil.copy(pose_f, pose_f_out)
+
+        rgb_imgae = cv2.imread(rgb_f)
+        mask_image = cv2.imread(mask_f, cv2.IMREAD_GRAYSCALE)
+        _, binary_mask = cv2.threshold(mask_image, 128, 255, cv2.THRESH_BINARY)
+        binary_mask = binary_mask[:, :, np.newaxis]
+        masked_image = rgb_imgae * (binary_mask // 255) + 255 * (1 - binary_mask// 255)
+        alpha_channel = binary_mask
+        rgba_image = cv2.merge((masked_image[:, :, 0], masked_image[:, :, 1], masked_image[:, :, 2], alpha_channel))
+        rgba_f = os.path.join(rgbas_dir, f"{ci:04d}.png")
+        cv2.imwrite(rgba_f, rgba_image)
+
+    
     json_file = os.path.join(out_dir, "map.json")
+    print(f"Writing to {json_file}")
     with open(json_file, 'w') as f:
         for i, entry in enumerate(valid_frames):
-            rgb, pose, mask = entry
-            f.write(f"{i:04d} {rgb} {mask} {pose}\n")        
+            rgb_f, pose_f, mask_f = entry
+            f.write(f"{i:04d} {rgb_f} {mask_f} {pose_f}\n")        
 # after preprocessCamerasFromRealImageWithGtPose is called, the following code can be used to read the camera information
 def readCamerasFromRealImageWithGTPose_1(config):
     cam_type = config.cam_type.lower() # "cvc2cvw" or "cvc2blw" or "blc2blw"
@@ -321,10 +337,10 @@ def readCamerasFromRealImageWithGTPose_1(config):
     return cam_infos
 
 if __name__ == "__main__":
-    scene = "AP10"
+    scene = "MC1"
     config = {
-        "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/evaluation/" + scene + "/rgb/",
-        "pose_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/evaluation/" + scene + "/meta/",
+        "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/rgb/",
+        "pose_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/meta/",
         "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
         "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_gt_poose/" + scene,
         "start_frame": 0,

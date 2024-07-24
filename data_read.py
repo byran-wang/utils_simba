@@ -144,7 +144,7 @@ def get_focal_lengths(meta):
     return (fl_x, fl_y)
 
 
-def preprocessCamerasFromRealImageWithGtPose(config):
+def PreprocessHO3DGTPose(config):
     rgb_all = sorted(glob(f"{config['rgb_path']}/*.jpg"))
     pose_all = sorted(glob(f"{config['pose_path']}/*.pkl"))
     mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
@@ -216,7 +216,7 @@ def preprocessCamerasFromRealImageWithGtPose(config):
             rgb_f, pose_f, mask_f = entry
             f.write(f"{i:04d} {rgb_f} {mask_f} {pose_f}\n")        
 # after preprocessCamerasFromRealImageWithGtPose is called, the following code can be used to read the camera information
-def readCamerasFromRealImageWithGTPose_1(config):
+def ReadHO3DGTPose(config):
     cam_type = config.cam_type.lower() # "cvc2cvw" or "cvc2blw" or "blc2blw"
     cam_infos = []
     rgb_all = sorted(glob(f"{config['rgb_path']}/*.png"))
@@ -264,7 +264,7 @@ def readCamerasFromRealImageWithGTPose_1(config):
         
     return cam_infos
 
-def RunPreprocessCamerasFromRealImageWithGtPose():
+def RunPreprocessHO3DGTPose():
     scene = "AP10"
     config = {
         "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/evaluation/" + scene + "/rgb/",
@@ -278,7 +278,7 @@ def RunPreprocessCamerasFromRealImageWithGtPose():
     }
     from attrdict import AttrDict
     config = AttrDict(config)
-    preprocessCamerasFromRealImageWithGtPose(config)   
+    PreprocessHO3DGTPose(config)   
 
 def RunPreprocessCamerasFromBlenderJson():
     scene = "cracker_box"
@@ -291,6 +291,6 @@ def RunPreprocessCamerasFromBlenderJson():
     preprocessCamerasFromBlenderJson(config)   
 
 if __name__ == "__main__":
-    # RunPreprocessCamerasFromRealImageWithGtPose()
+    # RunPreprocessHO3DGTPose()
     RunPreprocessCamerasFromBlenderJson()
  

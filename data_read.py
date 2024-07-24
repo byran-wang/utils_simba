@@ -13,6 +13,7 @@ import os.path as op
 import shutil
 import sys
 CONSOLE = Console(width=120)
+import subprocess
 
 class CameraInfo(NamedTuple):
     uid: int
@@ -376,6 +377,94 @@ def ReadHO3DGTPose(config):
         
     return cam_infos
 
+def inpaint_input_views(config, do_inpaint=True, do_cutie=True):
+    inpaint_views = config.inpaint_f
+
+    InpaintAny_dir = "/home/simba/Documents/project/Inpaint-Anything"
+    InpaintAny_py = "/home/simba/anaconda3/envs/chatcap/bin/python"
+    InpaintAny_script = os.path.join(InpaintAny_dir, "remove_anything.py")
+
+    Cutie_dir = "/home/simba/Documents/project/Cutie"
+    Cutie_py = "/home/simba/anaconda3/envs/py38cu118/bin/python"
+    Cutie_script = os.path.join(Cutie_dir, "interactive_demo.py")
+    Cutie_workspace_dir = os.path.join(Cutie_dir, "workspace")
+
+    for i, inpaint_view in enumerate(inpaint_views):
+        out_dir = os.path.join(os.path.dirname(inpaint_view), "../inpaint")
+        os.makedirs(out_dir, exist_ok=True)
+        image_name = os.path.basename(inpaint_view).split(".")[0]
+        if do_inpaint:
+            inpainting_command = [
+                InpaintAny_py, InpaintAny_script,
+                "--input_img", inpaint_view,
+                "--coords_type", "click",
+                "--point_coords", "200", "450",
+                "--point_labels", "1",
+                "--dilate_kernel_size", "15",
+                "--output_dir", out_dir,
+                "--sam_model_type", "vit_t",
+                "--sam_ckpt", "./weights/mobile_sam.pt",
+                "--lama_config", "./lama/configs/prediction/default.yaml",
+                "--lama_ckpt", "./pretrained_models/big-lama"
+            ]
+            
+            subprocess.run(inpainting_command, check=True, cwd=InpaintAny_dir)
+            print(f"Finished inpainting {inpaint_view}")
+            print(f"Output saved to {out_dir}/{image_name}")
+            selected_number = input("Please enter inpaint selected number [0, 1 or 2]:")
+            inpaint_file = os.path.join(out_dir, image_name, f"inpainted_with_mask_{selected_number}.png")
+            # Create directories
+            inpaint_image_dir = os.path.join(os.path.dirname(inpaint_file), "image")
+            inpaint_mask_dir = os.path.join(os.path.dirname(inpaint_file), "mask")
+            os.makedirs(inpaint_image_dir, exist_ok=True)
+            os.makedirs(inpaint_mask_dir, exist_ok=True)
+            inpaint_image_file = os.path.join(inpaint_image_dir, f"{image_name}.png")
+            subprocess.run(["cp", inpaint_file, inpaint_image_file], check=True)
+
+            inpaint_video_file = os.path.join(inpaint_image_dir, f"{image_name}.mp4")
+            # Create video from images using ffmpeg
+            command = [
+                '/usr/bin/ffmpeg', '-framerate', '5', '-pattern_type', 'glob', '-i', '\"./*.png\"',
+                '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-vf', '\"pad=ceil(iw/2)*2:ceil(ih/2)*2\"',
+                f"{image_name}.mp4"
+            ]
+            shell_command = ' '.join(command)
+            subprocess.run(shell_command, shell=True, check=True, cwd=inpaint_image_dir)
+
+        if do_cutie:
+            # Run Cutie interactive demo
+            if not do_inpaint:
+                inpaint_video_file = os.path.join(out_dir, image_name, "image", image_name + ".mp4")
+                inpaint_mask_file = os.path.join(out_dir, image_name, "mask", f"{image_name}.png")
+                inpaint_image_file = os.path.join(out_dir, image_name, "image", f"{image_name}.png")
+            command = [
+                Cutie_py, 
+                Cutie_script,
+                "--video", inpaint_video_file, 
+                "--num_objects", "1"
+            ]
+            subprocess.run(["rm", "-rf", os.path.join(Cutie_workspace_dir, f"{image_name}")], check=True)
+            subprocess.run(command, check=True, cwd=Cutie_dir)     
+            cutie_mask_file = os.path.join(Cutie_workspace_dir, f"{image_name}", "binary_masks", "0000000.png")
+            # Copy the generated mask
+            subprocess.run(["cp", "-rf", cutie_mask_file, inpaint_mask_file], check=True)
+
+
+            inpaint_image = cv2.imread(inpaint_image_file)
+            mask_image = cv2.imread(inpaint_mask_file, cv2.IMREAD_GRAYSCALE)
+            _, binary_mask = cv2.threshold(mask_image, 128, 255, cv2.THRESH_BINARY)
+            binary_mask = binary_mask[:, :, np.newaxis]
+            masked_inpaint = inpaint_image * (binary_mask // 255) + 255 * (1 - binary_mask// 255)
+
+            masked_ip_f = os.path.join(out_dir, f"{image_name}.png")
+            cv2.imwrite(masked_ip_f, masked_inpaint)
+
+            alpha_channel = binary_mask
+            rgba_image = cv2.merge((inpaint_image[:, :, 0], inpaint_image[:, :, 1], inpaint_image[:, :, 2], alpha_channel))
+            masked_ip_rgba_f = os.path.join(out_dir, f"{image_name}_rgba.png")
+            cv2.imwrite(masked_ip_rgba_f, rgba_image)
+
+
 def RunPreprocessHO3DFoundationPose():
     scene = "MC1"
     config = {
@@ -418,8 +507,17 @@ def RunPreprocessCamerasFromBlenderJson():
     config = AttrDict(config)
     preprocessCamerasFromBlenderJson(config)   
 
+def RunInpaintInputViews():
+    config = {
+        "inpaint_f": ["/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/MC1/images/0098.png"]
+    }
+    from attrdict import AttrDict
+    config = AttrDict(config)
+    inpaint_input_views(config, do_inpaint=True, do_cutie=True)
+
 if __name__ == "__main__":
     # RunPreprocessHO3DGTPose()
     # RunPreprocessCamerasFromBlenderJson()
-    RunPreprocessHO3DFoundationPose()
+    # RunPreprocessHO3DFoundationPose()
+    RunInpaintInputViews()
  

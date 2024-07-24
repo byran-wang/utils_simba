@@ -91,11 +91,13 @@ def readCamerasFromBlenderJson(config):
                 if cam_type == "cvc2cvw":
                     cvc2cvw = blw2cvw @ blc2blw @ cvc2blc
                     c2w_final = cvc2cvw
-                if cam_type == "cvc2blw":
+                elif cam_type == "cvc2blw":
                     cvc2blw = blc2blw @ cvc2blc
                     c2w_final = cvc2blw
                 elif cam_type == "blc2blw":
                     c2w_final = blc2blw
+                else:
+                    assert "Unknown camera type"
                 cam_infos.append(CameraInfo(uid=idx, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
                                             rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
                                             height=height, width=width, fov_x=fov_x, fov_y=fov_y))
@@ -238,7 +240,7 @@ def readCamerasFromRealImageWithGTPose_1(config):
             fov_x = math.atan(width / (2 * fl_x)) * 2
             fov_y = math.atan(height / (2 * fl_y)) * 2
             cvw2blw = np.array([[0, 0, -1, 0],[1, 0 , 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]])
-            blc2glc = np.array([[1, 0, 0, 0],[0, 1 , 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+            cvw2glw = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
             glc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
             blc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         cvw2glc = np.eye(4)
@@ -249,8 +251,13 @@ def readCamerasFromRealImageWithGTPose_1(config):
         if cam_type == "blc2blw":
             blc2blw = cvw2blw @ cvc2cvw @ blc2cvc
             c2w_final = blc2blw
-        if cam_type == "cvc2cvw":
+        elif cam_type == "glc2glw":
+            glc2glw = cvw2glw @ cvc2cvw @ glc2cvc
+            c2w_final = glc2glw
+        elif cam_type == "cvc2cvw":
             c2w_final = cvc2cvw
+        else:
+            assert "Unknown camera type"
         cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
                                     rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
                                     height=height, width=width, fov_x=fov_x, fov_y=fov_y))

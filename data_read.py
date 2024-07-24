@@ -143,6 +143,118 @@ def get_focal_lengths(meta):
 
     return (fl_x, fl_y)
 
+def PreprocessHO3DFoundationPose(config):
+    rgb_all = sorted(glob(f"{config['rgb_path']}/*.jpg"))
+    pose_all = sorted(glob(f"{config['pose_path']}/*.txt"))
+    mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
+    intrinsic_f = rgb_all[0].replace("rgb", "meta").replace("jpg", "pkl")
+    out_dir = config['out_dir']
+    images_dir = os.path.join(out_dir, "images")
+    rgbas_dir = os.path.join(out_dir, "rgbas")
+    masks_dir = os.path.join(out_dir, "masks")
+    poses_dir = os.path.join(out_dir, "poses")
+    intrinsic_dir = os.path.join(out_dir, "intrinsic")
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(images_dir, exist_ok=True)
+    os.makedirs(masks_dir, exist_ok=True)
+    os.makedirs(poses_dir, exist_ok=True)
+    os.makedirs(rgbas_dir, exist_ok=True)
+    os.makedirs(intrinsic_dir, exist_ok=True)
+    breakpoint()
+    if config.end_frame == -1:
+        end_fname = rgb_all[-1]
+        end = int(op.basename(end_fname).split(".")[0].split("_rgba")[0])
+        config.end_frame = end
+    assert config.end_frame > config.start_frame    
+
+    frame_range = list(range(config.start_frame, config.end_frame, config.frame_interval))
+    valid_frames = []
+
+    for i in frame_range:
+        rgb_f = os.path.join(config['rgb_path'], f"{i:04d}.jpg")
+        if (rgb_f in rgb_all):
+            pose_f = os.path.join(config['pose_path'], f"{i:04d}.txt")
+            if pose_f in pose_all:
+                mask_f = os.path.join(config['mask_path'], f"{i:05d}.png")
+                if mask_f in mask_all:
+                    if i not in config.exclude_frames:
+                        valid_frames.append([rgb_f, pose_f, mask_f])
+                else:
+                    print(f"Warning: {mask_f} not found")
+            else:
+                print(f"Warning: {pose_f} not found")
+        else:
+            print(f"Warning: {rgb_f} not found")
+    assert len(valid_frames) > 0
+
+    for ci, [rgb_f, pose_f, mask_f] in enumerate(valid_frames):
+        rgb_f_out = os.path.join(images_dir, f"{ci:04d}.png")
+        mask_f_out = os.path.join(masks_dir, f"{ci:04d}.png")
+        pose_f_out = os.path.join(poses_dir, f"{ci:04d}.txt")
+        cv2.imwrite(rgb_f_out, cv2.imread(rgb_f))
+        shutil.copy(mask_f, mask_f_out)
+        shutil.copy(pose_f, pose_f_out)
+
+        rgb_imgae = cv2.imread(rgb_f)
+        mask_image = cv2.imread(mask_f, cv2.IMREAD_GRAYSCALE)
+        _, binary_mask = cv2.threshold(mask_image, 128, 255, cv2.THRESH_BINARY)
+        binary_mask = binary_mask[:, :, np.newaxis]
+        masked_image = rgb_imgae * (binary_mask // 255) + 255 * (1 - binary_mask// 255)
+        alpha_channel = binary_mask
+        rgba_image = cv2.merge((masked_image[:, :, 0], masked_image[:, :, 1], masked_image[:, :, 2], alpha_channel))
+        rgba_f = os.path.join(rgbas_dir, f"{ci:04d}.png")
+        cv2.imwrite(rgba_f, rgba_image)
+
+    intrinsic_f_out = os.path.join(intrinsic_dir, os.path.basename(intrinsic_f))
+    shutil.copy(intrinsic_f, intrinsic_f_out)
+    json_file = os.path.join(out_dir, "map.json")
+    print(f"Writing to {json_file}")
+    with open(json_file, 'w') as f:
+        for i, entry in enumerate(valid_frames):
+            rgb_f, pose_f, mask_f = entry
+            f.write(f"{i:04d} {rgb_f} {mask_f} {pose_f}\n")        
+# after PreprocessHO3DFoundationPose is called, the following code can be used to read the camera information
+def ReadHO3DFoundationPose(config):
+    cam_type = config.cam_type.lower() # "cvc2cvw" or "cvc2blw" or "blc2blw"
+    cam_infos = []
+    rgb_all = sorted(glob(f"{config['rgb_path']}/*.png"))
+    pose_all = sorted(glob(f"{config['pose_path']}/*.txt"))
+    mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
+    rgba_all = sorted(glob(f"{config['rgba_path']}/*.png"))
+    intrinsic_f = f"{config['intrinsic_f']}"
+
+    K = None
+    cam_infos = [] 
+    for ci, [rgb_f, rgba_f, mask_f, pose_f] in enumerate(zip(rgb_all, rgba_all, mask_all, pose_all)):        
+        if ci == 0:
+            meta = pickle.load(open(intrinsic_f,'rb'))
+            K = meta['camMat']
+            fl_x, fl_y = K[0, 0], K[1, 1]
+            cx, cy = K[0, 2], K[1, 2]
+            rgba_imgae = cv2.imread(rgba_f)
+            height, width = rgba_imgae.shape[:2]
+            fov_x = math.atan(width / (2 * fl_x)) * 2
+            fov_y = math.atan(height / (2 * fl_y)) * 2
+            cvw2blw = np.array([[0, 0, -1, 0],[1, 0 , 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]])
+            cvw2glw = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+            glc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+            blc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        cvc2cvw = np.linalg.inv(np.loadtxt(pose_f))
+        if cam_type == "blc2blw":
+            blc2blw = cvw2blw @ cvc2cvw @ blc2cvc
+            c2w_final = blc2blw
+        elif cam_type == "glc2glw":
+            glc2glw = cvw2glw @ cvc2cvw @ glc2cvc
+            c2w_final = glc2glw
+        elif cam_type == "cvc2cvw":
+            c2w_final = cvc2cvw
+        else:
+            assert "Unknown camera type"
+        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
+                                    rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
+                                    height=height, width=width, fov_x=fov_x, fov_y=fov_y))
+        
+    return cam_infos
 
 def PreprocessHO3DGTPose(config):
     rgb_all = sorted(glob(f"{config['rgb_path']}/*.jpg"))
@@ -264,6 +376,22 @@ def ReadHO3DGTPose(config):
         
     return cam_infos
 
+def RunPreprocessHO3DFoundationPose():
+    scene = "MC1"
+    config = {
+        "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/rgb/",
+        "pose_path": "/home/simba/Documents/project/FoundationPose/output/" + f"{scene}/{scene}" + "/ob_in_cam/",
+        "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
+        "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/" + scene,
+        "start_frame": 0,
+        "end_frame": -1,
+        "frame_interval": 5,
+        "exclude_frames": [],
+    }
+    from attrdict import AttrDict
+    config = AttrDict(config)
+    PreprocessHO3DFoundationPose(config)
+
 def RunPreprocessHO3DGTPose():
     scene = "AP10"
     config = {
@@ -292,5 +420,6 @@ def RunPreprocessCamerasFromBlenderJson():
 
 if __name__ == "__main__":
     # RunPreprocessHO3DGTPose()
-    RunPreprocessCamerasFromBlenderJson()
+    # RunPreprocessCamerasFromBlenderJson()
+    RunPreprocessHO3DFoundationPose()
  

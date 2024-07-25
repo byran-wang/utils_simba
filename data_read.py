@@ -377,7 +377,7 @@ def ReadHO3DGTPose(config):
         
     return cam_infos
 
-def inpaint_input_views(config, do_inpaint=True, do_cutie=True):
+def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
     inpaint_views = config.inpaint_f
 
     InpaintAny_dir = "/home/simba/Documents/project/Inpaint-Anything"
@@ -393,6 +393,13 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True):
         out_dir = os.path.join(os.path.dirname(inpaint_view), "../inpaint")
         os.makedirs(out_dir, exist_ok=True)
         image_name = os.path.basename(inpaint_view).split(".")[0]
+
+        inpaint_video_file = os.path.join(out_dir, image_name, "image", image_name + ".mp4")
+        inpaint_mask_file = os.path.join(out_dir, image_name, "mask", f"{image_name}.png")
+        inpaint_image_file = os.path.join(out_dir, image_name, "image", f"{image_name}.png")
+
+        masked_ip_rgba_f = os.path.join(out_dir, f"{image_name}_rgba.png")       
+
         if do_inpaint:
             inpainting_command = [
                 InpaintAny_py, InpaintAny_script,
@@ -418,10 +425,8 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True):
             inpaint_mask_dir = os.path.join(os.path.dirname(inpaint_file), "mask")
             os.makedirs(inpaint_image_dir, exist_ok=True)
             os.makedirs(inpaint_mask_dir, exist_ok=True)
-            inpaint_image_file = os.path.join(inpaint_image_dir, f"{image_name}.png")
             subprocess.run(["cp", inpaint_file, inpaint_image_file], check=True)
 
-            inpaint_video_file = os.path.join(inpaint_image_dir, f"{image_name}.mp4")
             # Create video from images using ffmpeg
             command = [
                 '/usr/bin/ffmpeg', '-framerate', '5', '-pattern_type', 'glob', '-i', '\"./*.png\"',
@@ -433,10 +438,6 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True):
 
         if do_cutie:
             # Run Cutie interactive demo
-            if not do_inpaint:
-                inpaint_video_file = os.path.join(out_dir, image_name, "image", image_name + ".mp4")
-                inpaint_mask_file = os.path.join(out_dir, image_name, "mask", f"{image_name}.png")
-                inpaint_image_file = os.path.join(out_dir, image_name, "image", f"{image_name}.png")
             command = [
                 Cutie_py, 
                 Cutie_script,
@@ -461,8 +462,31 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True):
 
             alpha_channel = binary_mask
             rgba_image = cv2.merge((inpaint_image[:, :, 0], inpaint_image[:, :, 1], inpaint_image[:, :, 2], alpha_channel))
-            masked_ip_rgba_f = os.path.join(out_dir, f"{image_name}_rgba.png")
             cv2.imwrite(masked_ip_rgba_f, rgba_image)
+        
+        if do_center:
+            inpaint_rgba = cv2.imread(masked_ip_rgba_f, cv2.IMREAD_UNCHANGED)
+            desired_size = int(config['inpaint_size'] * (1 - config['border_ratio']))
+            # Center the inpainted view
+            mask = inpaint_rgba[:, :, 3]
+            coords = np.nonzero(mask)
+            x_min, x_max = coords[0].min(), coords[0].max()
+            y_min, y_max = coords[1].min(), coords[1].max()
+            h = x_max - x_min
+            w = y_max - y_min
+            scale = desired_size / max(h, w)
+            h2 = int(h * scale)
+            w2 = int(w * scale)
+            x2_min = (config['inpaint_size'] - h2) // 2
+            x2_max = x2_min + h2
+            y2_min = (config['inpaint_size'] - w2) // 2
+            y2_max = y2_min + w2
+            # mask
+
+            inpaint_rgba_center = np.zeros((config['inpaint_size'], config['inpaint_size'], 4), dtype=np.uint8)
+            inpaint_rgba_center[x2_min:x2_max, y2_min:y2_max] = cv2.resize(inpaint_rgba[x_min:x_max, y_min:y_max], (w2, h2), interpolation=cv2.INTER_AREA)
+            inpaint_rgba_center_f = os.path.join(out_dir, f"{image_name}_rgba_center.png")
+            cv2.imwrite(inpaint_rgba_center_f, inpaint_rgba_center)
 
 
 def RunPreprocessHO3DFoundationPose():
@@ -509,11 +533,13 @@ def RunPreprocessCamerasFromBlenderJson():
 
 def RunInpaintInputViews():
     config = {
-        "inpaint_f": ["/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/MC1/images/0098.png"]
+        "inpaint_f": ["/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/MC1/images/0098.png"],
+        "inpaint_size": 256,
+        "border_ratio": 0.2,
     }
     from attrdict import AttrDict
     config = AttrDict(config)
-    inpaint_input_views(config, do_inpaint=True, do_cutie=True)
+    inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True)
 
 if __name__ == "__main__":
     # RunPreprocessHO3DGTPose()

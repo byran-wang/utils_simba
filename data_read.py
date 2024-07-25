@@ -216,7 +216,7 @@ def PreprocessHO3DFoundationPose(config):
             f.write(f"{i:04d} {rgb_f} {mask_f} {pose_f}\n")        
 # after PreprocessHO3DFoundationPose is called, the following code can be used to read the camera information
 def ReadHO3DFoundationPose(config):
-    cam_type = config.cam_type.lower() # "cvc2cvw" or "cvc2blw" or "blc2blw"
+    cam_type = config.cam_type.lower() # "cvc2blw" or "blc2blw"
     cam_infos = []
     rgb_all = sorted(glob(f"{config['rgb_path']}/*.png"))
     pose_all = sorted(glob(f"{config['pose_path']}/*.txt"))
@@ -236,19 +236,13 @@ def ReadHO3DFoundationPose(config):
             height, width = rgba_imgae.shape[:2]
             fov_x = math.atan(width / (2 * fl_x)) * 2
             fov_y = math.atan(height / (2 * fl_y)) * 2
-            cvw2blw = np.array([[0, 0, -1, 0],[1, 0 , 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]])
-            cvw2glw = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
-            glc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
             blc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
-        cvc2cvw = np.linalg.inv(np.loadtxt(pose_f))
+        cvc2blw = np.linalg.inv(np.loadtxt(pose_f))
         if cam_type == "blc2blw":
-            blc2blw = cvw2blw @ cvc2cvw @ blc2cvc
+            blc2blw = cvc2blw @ blc2cvc
             c2w_final = blc2blw
-        elif cam_type == "glc2glw":
-            glc2glw = cvw2glw @ cvc2cvw @ glc2cvc
-            c2w_final = glc2glw
-        elif cam_type == "cvc2cvw":
-            c2w_final = cvc2cvw
+        elif cam_type == "cvc2blw":
+            c2w_final = cvc2blw
         else:
             assert "Unknown camera type"
         cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 

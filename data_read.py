@@ -161,7 +161,6 @@ def PreprocessHO3DFoundationPose(config):
     os.makedirs(poses_dir, exist_ok=True)
     os.makedirs(rgbas_dir, exist_ok=True)
     os.makedirs(intrinsic_dir, exist_ok=True)
-    breakpoint()
     if config.end_frame == -1:
         end_fname = rgb_all[-1]
         end = int(op.basename(end_fname).split(".")[0].split("_rgba")[0])
@@ -226,7 +225,12 @@ def ReadHO3DFoundationPose(config):
 
     K = None
     cam_infos = [] 
-    for ci, [rgb_f, rgba_f, mask_f, pose_f] in enumerate(zip(rgb_all, rgba_all, mask_all, pose_all)):        
+    for ci, [rgb_f, rgba_f, mask_f, pose_f] in enumerate(zip(rgb_all, rgba_all, mask_all, pose_all)):
+        rgb_f_ind = op.basename(rgb_f).split(".")[0]
+        rgba_f_ind = op.basename(rgba_f).split(".")[0]
+        mask_f_ind = op.basename(mask_f).split(".")[0]
+        pose_f_ind = op.basename(pose_f).split(".")[0]
+        assert rgb_f_ind == rgba_f_ind == mask_f_ind == pose_f_ind      
         if ci == 0:
             meta = pickle.load(open(intrinsic_f,'rb'))
             K = meta['camMat']
@@ -483,21 +487,7 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
             cv2.imwrite(inpaint_rgba_center_f, inpaint_rgba_center)
 
 
-def RunPreprocessHO3DFoundationPose():
-    scene = "MC1"
-    config = {
-        "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/rgb/",
-        "pose_path": "/home/simba/Documents/project/FoundationPose/output/" + f"{scene}/{scene}" + "/ob_in_cam/",
-        "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
-        "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/" + scene,
-        "start_frame": 0,
-        "end_frame": -1,
-        "frame_interval": 5,
-        "exclude_frames": [],
-    }
-    from attrdict import AttrDict
-    config = AttrDict(config)
-    PreprocessHO3DFoundationPose(config)
+
 
 def RunPreprocessHO3DGTPose():
     scene = "AP10"
@@ -525,9 +515,24 @@ def RunPreprocessCamerasFromBlenderJson():
     config = AttrDict(config)
     preprocessCamerasFromBlenderJson(config)   
 
-def RunInpaintInputViews():
+def RunPreprocessHO3DFoundationPose(scene):
     config = {
-        "inpaint_f": ["/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/MC1/images/0098.png"],
+        "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/rgb/",
+        "pose_path": "/home/simba/Documents/project/FoundationPose/output/" + f"{scene}/{scene}" + "/ob_in_cam/",
+        "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
+        "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/" + scene,
+        "start_frame": 0,
+        "end_frame": -1,
+        "frame_interval": 5,
+        "exclude_frames": [],
+    }
+    from attrdict import AttrDict
+    config = AttrDict(config)
+    PreprocessHO3DFoundationPose(config)
+
+def RunInpaintInputViews(scene):
+    config = {
+        "inpaint_f": [f"/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/{scene}/images/0097.png"],
         "inpaint_size": 256,
         "border_ratio": 0.2,
     }
@@ -536,8 +541,11 @@ def RunInpaintInputViews():
     inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True)
 
 if __name__ == "__main__":
-    # RunPreprocessHO3DGTPose()
-    # RunPreprocessCamerasFromBlenderJson()
-    # RunPreprocessHO3DFoundationPose()
-    RunInpaintInputViews()
+    # scenes = ["MC1", "ABF12", "ABF14", "AP10", "GPMF13", "GSF10", "MDF11", "ND2", "SB11", "ShSu10", "SiBF10"]
+    scenes = ["GPMF13"]
+    for scene in scenes:
+        # RunPreprocessHO3DGTPose()
+        # RunPreprocessCamerasFromBlenderJson()
+        # RunPreprocessHO3DFoundationPose(scene)
+        RunInpaintInputViews(scene)
  

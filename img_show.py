@@ -3,8 +3,12 @@ import matplotlib.pyplot as plt
 
 # image shape should be [height, width, channels] and in range [0, 1]
 def show_img(img, normalize=False, title=None, off_axis=True):
-    rgb_tensor = img.detach().cpu() if img.is_cuda else img
-    rgb_array = rgb_tensor.numpy()
+    if type(img) == torch.Tensor:
+        rgb_tensor = img.detach().cpu()
+        rgb_array = rgb_tensor.numpy()
+    else:
+        rgb_tensor = img
+    rgb_array = img
     plt.imshow(rgb_array)
     if title:
         plt.title(title)

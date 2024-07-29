@@ -15,6 +15,7 @@ import sys
 CONSOLE = Console(width=120)
 import subprocess
 from misc import save_json
+import copy
 
 class CameraInfo(NamedTuple):
     uid: int
@@ -396,6 +397,7 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
 
     for i, inpaint_view in enumerate(inpaint_views):
         out_dir = os.path.join(os.path.dirname(inpaint_view), "../inpaint")
+        cameras_dir = os.path.join(os.path.dirname(inpaint_view), "../cameras")
         os.makedirs(out_dir, exist_ok=True)
         image_name = os.path.basename(inpaint_view).split(".")[0]
 
@@ -468,7 +470,7 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
             alpha_channel = binary_mask
             rgba_image = cv2.merge((masked_inpaint[:, :, 0], masked_inpaint[:, :, 1], masked_inpaint[:, :, 2], alpha_channel))
             cv2.imwrite(masked_ip_rgba_f, rgba_image)
-        
+       
         if do_center:
             inpaint_rgba = cv2.imread(masked_ip_rgba_f, cv2.IMREAD_UNCHANGED)
             desired_size = int(config['inpaint_size'] * (1 - config['border_ratio']))
@@ -492,8 +494,16 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
             inpaint_rgba_center[y2_min:y2_max, x2_min:x2_max] = cv2.resize(inpaint_rgba[y_min:y_max, x_min:x_max], (w2, h2), interpolation=cv2.INTER_AREA)
             inpaint_rgba_center_f = os.path.join(out_dir, f"{image_name}_rgba_center.png")
             cv2.imwrite(inpaint_rgba_center_f, inpaint_rgba_center)
-
-
+            # algine optical center
+            cx_after_center = int((x_min + x_max) / 2)
+            cy_after_center = int((y_min + y_max) / 2)
+            all_cameras = sorted(glob(f"{cameras_dir}/*.json"))     
+            for camera_f in all_cameras:
+                camera = json.load(open(camera_f, 'r'))
+                camera['K_inpaint'] = copy.deepcopy(camera['K'])
+                camera['K_inpaint'][0][2] = cx_after_center
+                camera['K_inpaint'][1][2] = cy_after_center
+                save_json(camera_f, camera)
 
 
 def RunPreprocessHO3DGTPose():
@@ -550,7 +560,7 @@ def RunInpaintInputViews(scene):
     }
     from attrdict import AttrDict
     config = AttrDict(config)
-    inpaint_input_views(config, do_inpaint=False, do_cutie=False, do_center=True)
+    inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True)
 
 if __name__ == "__main__":
     scenes = ["MC1", "ABF12", "ABF14", "AP10", "GPMF13", "GSF10", "MDF11", "ND2", "SB11", "ShSu10", "SiBF10"]

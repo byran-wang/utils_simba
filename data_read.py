@@ -468,21 +468,21 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
             # Center the inpainted view
             mask = inpaint_rgba[:, :, 3]
             coords = np.nonzero(mask)
-            x_min, x_max = coords[0].min(), coords[0].max()
-            y_min, y_max = coords[1].min(), coords[1].max()
-            h = x_max - x_min
-            w = y_max - y_min
+            y_min, y_max = coords[0].min(), coords[0].max()
+            x_min, x_max = coords[1].min(), coords[1].max()
+            h = y_max - y_min
+            w = x_max - x_min
             scale = desired_size / max(h, w)
             h2 = int(h * scale)
             w2 = int(w * scale)
-            x2_min = (config['inpaint_size'] - h2) // 2
-            x2_max = x2_min + h2
-            y2_min = (config['inpaint_size'] - w2) // 2
-            y2_max = y2_min + w2
+            y2_min = (config['inpaint_size'] - h2) // 2
+            y2_max = y2_min + h2
+            x2_min = (config['inpaint_size'] - w2) // 2
+            x2_max = x2_min + w2
             # mask
 
             inpaint_rgba_center = np.zeros((config['inpaint_size'], config['inpaint_size'], 4), dtype=np.uint8)
-            inpaint_rgba_center[x2_min:x2_max, y2_min:y2_max] = cv2.resize(inpaint_rgba[x_min:x_max, y_min:y_max], (w2, h2), interpolation=cv2.INTER_AREA)
+            inpaint_rgba_center[y2_min:y2_max, x2_min:x2_max] = cv2.resize(inpaint_rgba[y_min:y_max, x_min:x_max], (w2, h2), interpolation=cv2.INTER_AREA)
             inpaint_rgba_center_f = os.path.join(out_dir, f"{image_name}_rgba_center.png")
             cv2.imwrite(inpaint_rgba_center_f, inpaint_rgba_center)
 

@@ -14,7 +14,6 @@ import shutil
 import sys
 CONSOLE = Console(width=120)
 import subprocess
-from misc import save_json
 import copy
 
 class CameraInfo(NamedTuple):
@@ -28,10 +27,15 @@ class CameraInfo(NamedTuple):
     fov_y: float
     cx: float
     cy: float
+    scale_inpaint: float
     rgb_name: str
     rgba_name: str
     mask_name: str
     pts3d: np.array
+
+def save_json(json_f, data, indent=4):
+    with open(json_f, 'w') as file:
+        json.dump(data, file, indent=indent)
 
 def preprocessCamerasFromBlenderJson(config):  
     path = config.json_path
@@ -101,7 +105,7 @@ def readCamerasFromBlenderJson(config):
                     c2w_final = blc2blw
                 else:
                     assert "Unknown camera type"
-                cam_infos.append(CameraInfo(uid=idx, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
+                cam_infos.append(CameraInfo(uid=idx, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, scale_inpaint=None,
                                             rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
                                             height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         if num_skipped_image_filenames >= 0:
@@ -229,30 +233,30 @@ def ReadHO3DFoundationPose(config):
     cam_type = config.cam_type.lower() # "cvc2blw" or "blc2blw"
     cam_infos = []
     rgb_all = sorted(glob(f"{config['rgb_path']}/*.png"))
-    pose_all = sorted(glob(f"{config['pose_path']}/*.txt"))
+    camera_all = sorted(glob(f"{config['camera_path']}/*.json"))
     mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
     rgba_all = sorted(glob(f"{config['rgba_path']}/*.png"))
-    intrinsic_f = f"{config['intrinsic_f']}"
 
     K = None
     cam_infos = [] 
-    for ci, [rgb_f, rgba_f, mask_f, pose_f] in enumerate(zip(rgb_all, rgba_all, mask_all, pose_all)):
+    for ci, [rgb_f, rgba_f, mask_f, camera_f] in enumerate(zip(rgb_all, rgba_all, mask_all, camera_all)):
         rgb_f_ind = op.basename(rgb_f).split(".")[0]
         rgba_f_ind = op.basename(rgba_f).split(".")[0]
         mask_f_ind = op.basename(mask_f).split(".")[0]
-        pose_f_ind = op.basename(pose_f).split(".")[0]
-        assert rgb_f_ind == rgba_f_ind == mask_f_ind == pose_f_ind      
-        if ci == 0:
-            meta = pickle.load(open(intrinsic_f,'rb'))
-            K = meta['camMat']
-            fl_x, fl_y = K[0, 0], K[1, 1]
-            cx, cy = K[0, 2], K[1, 2]
-            rgba_imgae = cv2.imread(rgba_f)
-            height, width = rgba_imgae.shape[:2]
-            fov_x = math.atan(width / (2 * fl_x)) * 2
-            fov_y = math.atan(height / (2 * fl_y)) * 2
-            blc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
-        cvc2blw = np.linalg.inv(np.loadtxt(pose_f))
+        camera_f_ind = op.basename(camera_f).split(".")[0]
+        assert rgb_f_ind == rgba_f_ind == mask_f_ind == camera_f_ind      
+        camera = json.load(open(camera_f, 'r'))
+        # K = camera['K_inpaint']
+        # K = camera['K']
+        # K = camera['K_manual']
+        K = camera['K_half_wh']
+        fl_x, fl_y = K[0][0], K[1][1]
+        cx, cy = K[0][2], K[1][2]
+        height, width = camera['height'], camera['width']
+        fov_x = math.atan(width / (2 * fl_x)) * 2
+        fov_y = math.atan(height / (2 * fl_y)) * 2
+        blc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        cvc2blw = np.linalg.inv(camera['blw2cvc'])
         if cam_type == "blc2blw":
             blc2blw = cvc2blw @ blc2cvc
             c2w_final = blc2blw
@@ -260,7 +264,7 @@ def ReadHO3DFoundationPose(config):
             c2w_final = cvc2blw
         else:
             assert "Unknown camera type"
-        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
+        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, scale_inpaint=camera['scale_inpaint'],
                                     rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
                                     height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         
@@ -380,7 +384,7 @@ def ReadHO3DGTPose(config):
             c2w_final = cvc2cvw
         else:
             assert "Unknown camera type"
-        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
+        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, scale_inpaint=None,
                                     rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
                                     height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         
@@ -507,6 +511,12 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True):
                 camera['K_inpaint'] = copy.deepcopy(camera['K'])
                 camera['K_inpaint'][0][2] = align_cx
                 camera['K_inpaint'][1][2] = align_cy
+                camera['K_manual'] = copy.deepcopy(camera['K'])
+                camera['K_manual'][0][2] = config['manual_cx']
+                camera['K_manual'][1][2] = config['manual_cy']
+                camera['K_half_wh'] = copy.deepcopy(camera['K'])
+                camera['K_half_wh'][0][2] = camera['width'] // 2
+                camera['K_half_wh'][1][2] = camera['height'] // 2
                 align_scale = scale * camera['height'] / config['inpaint_size']
                 camera['scale_inpaint'] = align_scale
                 save_json(camera_f, camera)
@@ -558,24 +568,27 @@ def RunPreprocessHO3DFoundationPose(scene):
 def RunInpaintInputViews(scene):
     scene_name = scene['name']
     inpaint_rgb = scene['inpaint_rgb']
+    manual_cx_cy = scene['manual_cx_cy']
 
     config = {
         "inpaint_f": [f"/home/simba/Documents/project/diff_object/threestudio/dataset/HO3D_v3_foundation_pose/{scene_name}/images/{inpaint_rgb}"],
         "inpaint_size": 256,
         "border_ratio": 0.2,
+        "manual_cx": manual_cx_cy[0],
+        "manual_cy": manual_cx_cy[1],
     }
     from attrdict import AttrDict
     config = AttrDict(config)
-    inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True)
+    inpaint_input_views(config, do_inpaint=False, do_mask=False, do_center=True)
 
 if __name__ == "__main__":
     scenes = ["MC1", "ABF12", "ABF14", "AP10", "GPMF13", "GSF10", "MDF11", "ND2", "SB11", "ShSu10", "SiBF10"]
     scenes = [
-                {"name": "MC1",     "type": "train",        "inpaint_rgb": "0098.png"},
-                {"name": "ABF12",   "type": "train",        "inpaint_rgb": "0231.png"},
-                {"name": "ABF14",   "type": "train",        "inpaint_rgb": "0017.png"},
-                {"name": "AP10",    "type": "evaluation",   "inpaint_rgb": "0008.png"},
-                {"name": "GPMF13",  "type": "train",        "inpaint_rgb": "0097.png"},
+                {"name": "MC1",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                {"name": "ABF12",   "type": "train",        "inpaint_rgb": "0231.png", "manual_cx_cy": [200, 450]},
+                {"name": "ABF14",   "type": "train",        "inpaint_rgb": "0017.png", "manual_cx_cy": [200, 450]},
+                {"name": "AP10",    "type": "evaluation",   "inpaint_rgb": "0008.png", "manual_cx_cy": [200, 450]},
+                {"name": "GPMF13",  "type": "train",        "inpaint_rgb": "0097.png", "manual_cx_cy": [200, 450]},
                 # {"name": "GSF10",   "type": "train",        "inpaint_rgb": "xxxx.png"},
                 # {"name": "MDF11",   "type": "train",        "inpaint_rgb": "xxxx.png"},
                 # {"name": "ND2",     "type": "train",        "inpaint_rgb": "xxxx.png"},

@@ -459,7 +459,7 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
             cv2.imwrite(masked_ip_f, masked_inpaint)
 
             alpha_channel = binary_mask
-            rgba_image = cv2.merge((inpaint_image[:, :, 0], inpaint_image[:, :, 1], inpaint_image[:, :, 2], alpha_channel))
+            rgba_image = cv2.merge((masked_inpaint[:, :, 0], masked_inpaint[:, :, 1], masked_inpaint[:, :, 2], alpha_channel))
             cv2.imwrite(masked_ip_rgba_f, rgba_image)
         
         if do_center:

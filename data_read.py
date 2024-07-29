@@ -201,6 +201,9 @@ def PreprocessHO3DFoundationPose(config):
         pose_f_out = os.path.join(poses_dir, f"{ci:04d}.json")
         camera_param['blw2cvc'] = np.loadtxt(pose_f)
         camera_param['K'] = K
+        height, width = cv2.imread(rgb_f).shape[:2]
+        camera_param['height'] = np.array(height)
+        camera_param['width'] = np.array(width)
         camera_param_serializable = {key: value.tolist() for key, value in camera_param.items()}
         save_json(pose_f_out, camera_param_serializable)
 
@@ -383,7 +386,7 @@ def ReadHO3DGTPose(config):
         
     return cam_infos
 
-def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
+def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True):
     inpaint_views = config.inpaint_f
 
     InpaintAny_dir = "/home/simba/Documents/project/Inpaint-Anything"
@@ -443,7 +446,7 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
             shell_command = ' '.join(command)
             subprocess.run(shell_command, shell=True, check=True, cwd=inpaint_image_dir)
 
-        if do_cutie:
+        if do_mask:
             # Run Cutie interactive demo
             command = [
                 Cutie_py, 
@@ -494,15 +497,18 @@ def inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True):
             inpaint_rgba_center[y2_min:y2_max, x2_min:x2_max] = cv2.resize(inpaint_rgba[y_min:y_max, x_min:x_max], (w2, h2), interpolation=cv2.INTER_AREA)
             inpaint_rgba_center_f = os.path.join(out_dir, f"{image_name}_rgba_center.png")
             cv2.imwrite(inpaint_rgba_center_f, inpaint_rgba_center)
-            # algine optical center
-            cx_after_center = int((x_min + x_max) / 2)
-            cy_after_center = int((y_min + y_max) / 2)
+
+            # algine optical center and scale
+            align_cx = int((x_min + x_max) / 2)
+            align_cy = int((y_min + y_max) / 2)            
             all_cameras = sorted(glob(f"{cameras_dir}/*.json"))     
             for camera_f in all_cameras:
                 camera = json.load(open(camera_f, 'r'))
                 camera['K_inpaint'] = copy.deepcopy(camera['K'])
-                camera['K_inpaint'][0][2] = cx_after_center
-                camera['K_inpaint'][1][2] = cy_after_center
+                camera['K_inpaint'][0][2] = align_cx
+                camera['K_inpaint'][1][2] = align_cy
+                align_scale = scale * camera['height'] / config['inpaint_size']
+                camera['scale_inpaint'] = align_scale
                 save_json(camera_f, camera)
 
 
@@ -560,7 +566,7 @@ def RunInpaintInputViews(scene):
     }
     from attrdict import AttrDict
     config = AttrDict(config)
-    inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True)
+    inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True)
 
 if __name__ == "__main__":
     scenes = ["MC1", "ABF12", "ABF14", "AP10", "GPMF13", "GSF10", "MDF11", "ND2", "SB11", "ShSu10", "SiBF10"]
@@ -570,17 +576,17 @@ if __name__ == "__main__":
                 {"name": "ABF14",   "type": "train",        "inpaint_rgb": "0017.png"},
                 {"name": "AP10",    "type": "evaluation",   "inpaint_rgb": "0008.png"},
                 {"name": "GPMF13",  "type": "train",        "inpaint_rgb": "0097.png"},
-                {"name": "GSF10",   "type": "train",        "inpaint_rgb": "xxxx.png"},
-                {"name": "MDF11",   "type": "train",        "inpaint_rgb": "xxxx.png"},
-                {"name": "ND2",     "type": "train",        "inpaint_rgb": "xxxx.png"},
-                {"name": "SB11",    "type": "evaluation",   "inpaint_rgb": "xxxx.png"},
-                {"name": "ShSu10",  "type": "train",        "inpaint_rgb": "xxxx.png"},
-                {"name": "SiBF10",  "type": "train",        "inpaint_rgb": "xxxx.png"},
+                # {"name": "GSF10",   "type": "train",        "inpaint_rgb": "xxxx.png"},
+                # {"name": "MDF11",   "type": "train",        "inpaint_rgb": "xxxx.png"},
+                # {"name": "ND2",     "type": "train",        "inpaint_rgb": "xxxx.png"},
+                # {"name": "SB11",    "type": "evaluation",   "inpaint_rgb": "xxxx.png"},
+                # {"name": "ShSu10",  "type": "train",        "inpaint_rgb": "xxxx.png"},
+                # {"name": "SiBF10",  "type": "train",        "inpaint_rgb": "xxxx.png"},
             ]   
     # scenes = ["MC1"]
     for scene in scenes:
         # RunPreprocessHO3DGTPose()
         # RunPreprocessCamerasFromBlenderJson()
-        RunPreprocessHO3DFoundationPose(scene)
-        # RunInpaintInputViews(scene)
+        # RunPreprocessHO3DFoundationPose(scene)
+        RunInpaintInputViews(scene)
  

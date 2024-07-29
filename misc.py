@@ -1,6 +1,7 @@
 import os
 from omegaconf import OmegaConf
 from packaging import version
+import json
 
 
 # ============ Register OmegaConf Recolvers ============= #
@@ -52,3 +53,7 @@ def get_rank():
 
 def parse_version(ver):
     return version.parse(ver)
+
+def save_json(json_f, data, indent=4):
+    with open(json_f, 'w') as file:
+        json.dump(data, file, indent=indent)

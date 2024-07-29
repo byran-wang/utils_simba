@@ -14,6 +14,7 @@ import shutil
 import sys
 CONSOLE = Console(width=120)
 import subprocess
+from misc import save_json
 
 class CameraInfo(NamedTuple):
     uid: int
@@ -153,7 +154,7 @@ def PreprocessHO3DFoundationPose(config):
     images_dir = os.path.join(out_dir, "images")
     rgbas_dir = os.path.join(out_dir, "rgbas")
     masks_dir = os.path.join(out_dir, "masks")
-    poses_dir = os.path.join(out_dir, "poses")
+    poses_dir = os.path.join(out_dir, "cameras")
     intrinsic_dir = os.path.join(out_dir, "intrinsic")
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(images_dir, exist_ok=True)
@@ -187,13 +188,21 @@ def PreprocessHO3DFoundationPose(config):
             print(f"Warning: {rgb_f} not found")
     assert len(valid_frames) > 0
 
+    meta = pickle.load(open(intrinsic_f,'rb'))
+    K = meta['camMat']
+    camera_param = {}
     for ci, [rgb_f, pose_f, mask_f] in enumerate(valid_frames):
         rgb_f_out = os.path.join(images_dir, f"{ci:04d}.png")
         mask_f_out = os.path.join(masks_dir, f"{ci:04d}.png")
-        pose_f_out = os.path.join(poses_dir, f"{ci:04d}.txt")
+
         cv2.imwrite(rgb_f_out, cv2.imread(rgb_f))
         shutil.copy(mask_f, mask_f_out)
-        shutil.copy(pose_f, pose_f_out)
+        pose_f_out = os.path.join(poses_dir, f"{ci:04d}.json")
+        camera_param['blw2cvc'] = np.loadtxt(pose_f)
+        camera_param['K'] = K
+        camera_param_serializable = {key: value.tolist() for key, value in camera_param.items()}
+        save_json(pose_f_out, camera_param_serializable)
+
 
         rgb_imgae = cv2.imread(rgb_f)
         mask_image = cv2.imread(mask_f, cv2.IMREAD_GRAYSCALE)
@@ -205,8 +214,6 @@ def PreprocessHO3DFoundationPose(config):
         rgba_f = os.path.join(rgbas_dir, f"{ci:04d}.png")
         cv2.imwrite(rgba_f, rgba_image)
 
-    intrinsic_f_out = os.path.join(intrinsic_dir, os.path.basename(intrinsic_f))
-    shutil.copy(intrinsic_f, intrinsic_f_out)
     json_file = os.path.join(out_dir, "map.json")
     print(f"Writing to {json_file}")
     with open(json_file, 'w') as f:
@@ -495,7 +502,7 @@ def RunPreprocessHO3DGTPose():
         "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/evaluation/" + scene + "/rgb/",
         "pose_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/evaluation/" + scene + "/meta/",
         "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
-        "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_gt_poose/" + scene,
+        "out_dir": "/home/simba/Documents/project/diff_object/threestudio/dataset/HO3D_v3_gt_poose/" + scene,
         "start_frame": 0,
         "end_frame": -1,
         "frame_interval": 5,
@@ -516,11 +523,13 @@ def RunPreprocessCamerasFromBlenderJson():
     preprocessCamerasFromBlenderJson(config)   
 
 def RunPreprocessHO3DFoundationPose(scene):
+    scene_name = scene['name']
+    scene_type = scene['type']
     config = {
-        "rgb_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/train/" + scene + "/rgb/",
-        "pose_path": "/home/simba/Documents/project/FoundationPose/output/" + f"{scene}/{scene}" + "/ob_in_cam/",
-        "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene,
-        "out_dir": "/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/" + scene,
+        "rgb_path": f"/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/{scene_type}/" + scene_name + "/rgb/",
+        "pose_path": "/home/simba/Documents/project/FoundationPose/output/" + f"{scene_name}/{scene_name}" + "/ob_in_cam/",
+        "mask_path": "/home/simba/Documents/project/BundleSDF/dataset/HO3D_v3/masks_XMem/" + scene_name,
+        "out_dir": "/home/simba/Documents/project/diff_object/threestudio/dataset/HO3D_v3_foundation_pose/" + scene_name,
         "start_frame": 0,
         "end_frame": -1,
         "frame_interval": 5,
@@ -531,21 +540,37 @@ def RunPreprocessHO3DFoundationPose(scene):
     PreprocessHO3DFoundationPose(config)
 
 def RunInpaintInputViews(scene):
+    scene_name = scene['name']
+    inpaint_rgb = scene['inpaint_rgb']
+
     config = {
-        "inpaint_f": [f"/home/simba/Documents/project/diff_object_mary/threestudio/dataset/HO3D_v3_foundation_pose/{scene}/images/0097.png"],
+        "inpaint_f": [f"/home/simba/Documents/project/diff_object/threestudio/dataset/HO3D_v3_foundation_pose/{scene_name}/images/{inpaint_rgb}"],
         "inpaint_size": 256,
         "border_ratio": 0.2,
     }
     from attrdict import AttrDict
     config = AttrDict(config)
-    inpaint_input_views(config, do_inpaint=True, do_cutie=True, do_center=True)
+    inpaint_input_views(config, do_inpaint=False, do_cutie=False, do_center=True)
 
 if __name__ == "__main__":
-    # scenes = ["MC1", "ABF12", "ABF14", "AP10", "GPMF13", "GSF10", "MDF11", "ND2", "SB11", "ShSu10", "SiBF10"]
-    scenes = ["GPMF13"]
+    scenes = ["MC1", "ABF12", "ABF14", "AP10", "GPMF13", "GSF10", "MDF11", "ND2", "SB11", "ShSu10", "SiBF10"]
+    scenes = [
+                {"name": "MC1",     "type": "train",        "inpaint_rgb": "0098.png"},
+                {"name": "ABF12",   "type": "train",        "inpaint_rgb": "0231.png"},
+                {"name": "ABF14",   "type": "train",        "inpaint_rgb": "0017.png"},
+                {"name": "AP10",    "type": "evaluation",   "inpaint_rgb": "0008.png"},
+                {"name": "GPMF13",  "type": "train",        "inpaint_rgb": "0097.png"},
+                {"name": "GSF10",   "type": "train",        "inpaint_rgb": "xxxx.png"},
+                {"name": "MDF11",   "type": "train",        "inpaint_rgb": "xxxx.png"},
+                {"name": "ND2",     "type": "train",        "inpaint_rgb": "xxxx.png"},
+                {"name": "SB11",    "type": "evaluation",   "inpaint_rgb": "xxxx.png"},
+                {"name": "ShSu10",  "type": "train",        "inpaint_rgb": "xxxx.png"},
+                {"name": "SiBF10",  "type": "train",        "inpaint_rgb": "xxxx.png"},
+            ]   
+    # scenes = ["MC1"]
     for scene in scenes:
         # RunPreprocessHO3DGTPose()
         # RunPreprocessCamerasFromBlenderJson()
-        # RunPreprocessHO3DFoundationPose(scene)
-        RunInpaintInputViews(scene)
+        RunPreprocessHO3DFoundationPose(scene)
+        # RunInpaintInputViews(scene)
  

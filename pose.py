@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import copy
 
 def RT_opengl2opencv(RT):
      # Build the coordinate transform matrix from world to computer vision camera
@@ -45,3 +46,17 @@ def cartesian_to_spherical(xyz, unit="degree"):
                 "azimuth":  azimuth.item(),
                 "distance": distance.item(),
                 }
+    
+def get_relative_trans(c2w4x4):
+    cN2c0 = np.linalg.inv(c2w4x4[0]) @ c2w4x4
+    return cN2c0
+
+def scale_t(cN2c14x4, scale):
+    cN2c0_scale = copy.deepcopy(cN2c14x4)
+    for cN2c0 in cN2c0_scale:
+        cN2c0[:3, 3] *= scale
+    return cN2c0_scale
+
+def reposition_camera(cN2c14x4, c02w4x4):
+    cN2w = c02w4x4 @ cN2c14x4
+    return cN2w

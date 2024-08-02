@@ -244,3 +244,77 @@ def show_scene(c2ws4x4, rays_o, rays_d, cfg):
                     axis_args = AxisArgs(showline=True, showgrid=True, zeroline=True, showticklabels=True, backgroundcolor="rgb(220,255,228)"),
                 )
     fig.show()             
+
+import rerun as rr  # pip install rerun-sdk
+import rerun.blueprint as rrb
+import re
+import os
+import cv2
+
+def rotation_matrix_to_quaternion(R):
+        """
+        Convert a rotation matrix to a quaternion.
+
+        Parameters:
+        - R: A 3x3 rotation matrix.
+
+        Returns:
+        - A quaternion in the format [x, y, z, w].
+        """
+        # Make sure the matrix is a numpy array
+        R = np.asarray(R)
+        # Allocate space for the quaternion
+        q = np.empty((4,), dtype=np.float32)
+        # Compute the quaternion components
+        q[3] = np.sqrt(np.maximum(0, 1 + R[0, 0] + R[1, 1] + R[2, 2])) / 2
+        q[0] = np.sqrt(np.maximum(0, 1 + R[0, 0] - R[1, 1] - R[2, 2])) / 2
+        q[1] = np.sqrt(np.maximum(0, 1 - R[0, 0] + R[1, 1] - R[2, 2])) / 2
+        q[2] = np.sqrt(np.maximum(0, 1 - R[0, 0] - R[1, 1] + R[2, 2])) / 2
+        q[0] *= np.sign(q[0] * (R[2, 1] - R[1, 2]))
+        q[1] *= np.sign(q[1] * (R[0, 2] - R[2, 0]))
+        q[2] *= np.sign(q[2] * (R[1, 0] - R[0, 1]))
+        return q
+
+def show_scene_in_rerun(scene_data):
+    blueprint = rrb.Vertical(
+        rrb.Spatial3DView(name="3D", origin="/"),
+        rrb.Horizontal(
+            rrb.Spatial2DView(name="Camera", origin="/camera/image"),
+            rrb.TimeSeriesView(origin="/plot"),
+        ),
+        row_shares=[3, 2],
+    )
+    rr.init("rerun_diff_object", default_enabled=True, strict=True)
+    rec: RecordingStream = rr.get_global_data_recording()  # type: ignore[assignment]
+    rec.spawn(default_blueprint=blueprint)
+    rr.log("/", rr.ViewCoordinates.RIGHT_HAND_Y_DOWN, static=True) 
+    for image_file, c2w4x4 in zip(scene_data.image_name, scene_data.c2w):
+        
+        idx_match = re.search(r"\d+", os.path.basename(image_file))
+        assert idx_match is not None
+        frame_idx = int(idx_match.group(0))
+        
+        rr.set_time_sequence("frame", frame_idx)
+        gl2cv = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        
+
+        c2w4x4_np = np.array(c2w4x4)
+        c2w4x4_gl = gl2cv @ c2w4x4_np
+        translation = c2w4x4_np[:3, 3]
+        quaternion = rotation_matrix_to_quaternion(c2w4x4_np[:3,:3])
+
+        tf = rr.Transform3D(translation=translation, rotation=quaternion, from_parent=False)       
+        rr.log("camera", tf)
+        rr.log("camera", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward
+        rr.log(
+            "camera/image",
+            rr.Pinhole(
+                resolution=[scene_data.width, scene_data.height],
+                focal_length=np.array([scene_data.focal_length, scene_data.focal_length]).reshape(-1),
+                principal_point=np.array([scene_data.cx, scene_data.cy]).reshape(-1),
+            ),
+        )
+        bgr = cv2.imread(image_file)
+        bgr = cv2.resize(bgr, (scene_data.width, scene_data.height), interpolation=cv2.INTER_AREA)
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+        rr.log("camera/image", rr.Image(rgb))

@@ -275,6 +275,26 @@ def rotation_matrix_to_quaternion(R):
         q[2] *= np.sign(q[2] * (R[1, 0] - R[0, 1]))
         return q
 
+import trimesh
+def get_mesh_info(mesh_file):
+    mesh = trimesh.load(mesh_file)
+    if mesh.is_empty:
+        raise ValueError("The mesh could not be loaded. Please check the file path and format.")
+    # mesh.show()
+    vertex_positions = mesh.vertices
+    vertex_normals = mesh.vertex_normals
+    if mesh.visual.kind == 'texture':
+        vertex_colors = mesh.visual.to_color().vertex_colors
+    else:
+        vertex_colors = None
+
+    triangle_indices = mesh.faces
+    return {"vertex_positions": vertex_positions,
+            "vertex_normals": vertex_normals,
+            "vertex_colors": vertex_colors,
+            "triangle_indices": triangle_indices,
+            }
+
 def show_scene_in_rerun(scene_data):
     blueprint = rrb.Vertical(
         rrb.Spatial3DView(name="3D", origin="/"),
@@ -288,6 +308,16 @@ def show_scene_in_rerun(scene_data):
     rec: RecordingStream = rr.get_global_data_recording()  # type: ignore[assignment]
     rec.spawn(default_blueprint=blueprint)
     rr.log("/", rr.ViewCoordinates.RIGHT_HAND_Y_DOWN, static=True) 
+    mesh_info = get_mesh_info("./outputs/MC1_rr_3d_only/Phase1/save/it1000-export/model.obj")
+    rr.log(
+        "/asset", 
+        rr.Mesh3D(
+            vertex_positions=mesh_info["vertex_positions"],
+            vertex_normals=mesh_info["vertex_normals"],
+            vertex_colors=mesh_info["vertex_colors"],
+            triangle_indices=mesh_info["triangle_indices"],
+        ),           
+    )
     for image_file, c2w4x4 in zip(scene_data.image_name, scene_data.c2w):
         
         idx_match = re.search(r"\d+", os.path.basename(image_file))

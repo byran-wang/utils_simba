@@ -327,7 +327,13 @@ def show_scene_in_rerun(scene_data):
                 triangle_indices=mesh_info["triangle_indices"],
             ),           
         )
-        
+
+        ### viz the axis
+        origins = np.zeros((3, 3))
+        ends = np.eye(3)
+        colors = np.eye(3,4)
+        colors[:,-1] = 1
+        rr.log("/axis", rr.Arrows3D(origins=origins, vectors=ends, colors=colors))
         ### viz the camera
         cvc2glc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         glc2blw4x4_np = np.array(glc2blw4x4)
@@ -344,6 +350,7 @@ def show_scene_in_rerun(scene_data):
         )
         bgr = cv2.imread(image_file)
         bgr = cv2.resize(bgr, (scene_data.width, scene_data.height), interpolation=cv2.INTER_AREA)
+        bgr[scene_data.cx, scene_data.cy, :] = 0
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         rr.log("camera/image", rr.Image(rgb))
 

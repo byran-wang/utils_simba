@@ -308,34 +308,32 @@ def show_scene_in_rerun(scene_data):
     rec: RecordingStream = rr.get_global_data_recording()  # type: ignore[assignment]
     rec.spawn(default_blueprint=blueprint)
     rr.log("/", rr.ViewCoordinates.RIGHT_HAND_Y_DOWN, static=True) 
-    mesh_info = get_mesh_info("./outputs/MC1_rr_3d_only/Phase1/save/it1000-export/model.obj")
-    rr.log(
-        "/asset", 
-        rr.Mesh3D(
-            vertex_positions=mesh_info["vertex_positions"],
-            vertex_normals=mesh_info["vertex_normals"],
-            vertex_colors=mesh_info["vertex_colors"],
-            triangle_indices=mesh_info["triangle_indices"],
-        ),           
-    )
-    for image_file, c2w4x4 in zip(scene_data.image_name, scene_data.c2w):
+    
+    for image_file, glc2blw4x4 in zip(scene_data.image_name, scene_data.c2w):
         
         idx_match = re.search(r"\d+", os.path.basename(image_file))
         assert idx_match is not None
         frame_idx = int(idx_match.group(0))
         
         rr.set_time_sequence("frame", frame_idx)
-        gl2cv = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        ### viz the mesh
+        mesh_info = get_mesh_info("./outputs/MC1_rr_3d_only/Phase1/save/it1000-export/model.obj")
+        rr.log(
+            "/asset", 
+            rr.Mesh3D(
+                vertex_positions=mesh_info["vertex_positions"],
+                vertex_normals=mesh_info["vertex_normals"],
+                vertex_colors=mesh_info["vertex_colors"],
+                triangle_indices=mesh_info["triangle_indices"],
+            ),           
+        )
         
-
-        c2w4x4_np = np.array(c2w4x4)
-        c2w4x4_gl = gl2cv @ c2w4x4_np
-        translation = c2w4x4_np[:3, 3]
-        quaternion = rotation_matrix_to_quaternion(c2w4x4_np[:3,:3])
-
-        tf = rr.Transform3D(translation=translation, rotation=quaternion, from_parent=False)       
-        rr.log("camera", tf)
-        rr.log("camera", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward
+        ### viz the camera
+        cvc2glc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        glc2blw4x4_np = np.array(glc2blw4x4)
+        cvc2blw4x4 = glc2blw4x4_np @ cvc2glc
+        translation = cvc2blw4x4[:3, 3]
+        quaternion = rotation_matrix_to_quaternion(cvc2blw4x4[:3,:3])
         rr.log(
             "camera/image",
             rr.Pinhole(
@@ -348,3 +346,7 @@ def show_scene_in_rerun(scene_data):
         bgr = cv2.resize(bgr, (scene_data.width, scene_data.height), interpolation=cv2.INTER_AREA)
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         rr.log("camera/image", rr.Image(rgb))
+
+        tf = rr.Transform3D(translation=translation, rotation=quaternion, from_parent=False)       
+        rr.log("camera", tf)
+        rr.log("camera", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward

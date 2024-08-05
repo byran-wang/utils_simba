@@ -328,18 +328,15 @@ def show_scene_in_rerun(scene_data):
             ),           
         )
 
-        ### viz the axis
-        origins = np.zeros((3, 3))
-        ends = np.eye(3)
-        colors = np.eye(3,4)
-        colors[:,-1] = 1
-        rr.log("/axis", rr.Arrows3D(origins=origins, vectors=ends, colors=colors))
+
         ### viz the camera
         cvc2glc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         glc2blw4x4_np = np.array(glc2blw4x4)
         cvc2blw4x4 = glc2blw4x4_np @ cvc2glc
         translation = cvc2blw4x4[:3, 3]
         quaternion = rotation_matrix_to_quaternion(cvc2blw4x4[:3,:3])
+        # scene_data.cx = 142 *2
+        # scene_data.cy = 126 * 2
         rr.log(
             "camera/image",
             rr.Pinhole(
@@ -350,10 +347,114 @@ def show_scene_in_rerun(scene_data):
         )
         bgr = cv2.imread(image_file)
         bgr = cv2.resize(bgr, (scene_data.width, scene_data.height), interpolation=cv2.INTER_AREA)
-        bgr[scene_data.cx, scene_data.cy, :] = 0
+        bgr[int(scene_data.cy), int(scene_data.cx), :] = 0
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         rr.log("camera/image", rr.Image(rgb))
 
         tf = rr.Transform3D(translation=translation, rotation=quaternion, from_parent=False)       
         rr.log("camera", tf)
-        rr.log("camera", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward
+        rr.log("camera", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward    
+
+def set_blueprint(condition_data, observed_data):
+    cond_views = [
+        rrb.Spatial2DView(
+            name=f"cond_{cond_index}",
+            origin=f"world/cond_image/cond_{cond_index}",
+        )
+        for cond_index in condition_data["image_index"]
+    ]
+    observed_views = [
+        rrb.Spatial2DView(
+            name=f"observed_{observed_index}",
+            origin=f"world/observed_image/observed_{observed_index}",
+        )
+        for observed_index in observed_data["image_index"]
+    ]
+    blueprint = rrb.Vertical(
+        rrb.Horizontal(
+            rrb.Spatial3DView(
+                name="3D",
+                origin="world",
+                # Default for `ImagePlaneDistance` so that the pinhole frustum visualizations don't take up too much space.
+                defaults=[rr.components.ImagePlaneDistance(0.5)],
+                # Transform arrows for the vehicle shouldn't be too long.
+                overrides={"world/object": [rr.components.AxisLength(5.0)]},
+            ),
+            # rrb.TextDocumentView(origin="description", name="Description"),
+            column_shares=[3, 1],
+        ),
+        rrb.Grid(*(cond_views+observed_views)),
+        row_shares=[4, 2],
+    )
+    return blueprint
+
+def start_rr(rerun_name, blueprint):
+    rr.init(rerun_name, default_enabled=True, strict=True)
+    rec: RecordingStream = rr.get_global_data_recording()  # type: ignore[assignment]
+    rec.spawn(default_blueprint=blueprint)
+    rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)   
+
+def log_asset_3D(asset_3D_paths):
+    for asset_3D_path in asset_3D_paths:
+        mesh_info = get_mesh_info(asset_3D_path)
+        mesh_name = asset_3D_path.split("/")[2]
+        rr.log(
+            f"world/{mesh_name}", 
+            rr.Mesh3D(
+                vertex_positions=mesh_info["vertex_positions"],
+                vertex_normals=mesh_info["vertex_normals"],
+                vertex_colors=mesh_info["vertex_colors"],
+                triangle_indices=mesh_info["triangle_indices"],
+            ),           
+        )  
+
+def log_asset_axis():
+    origins = np.zeros((3, 3))
+    ends = np.eye(3)
+    colors = np.eye(3,4)
+    colors[:,-1] = 1
+    rr.log("world/axis", rr.Arrows3D(origins=origins, vectors=ends, colors=colors))
+
+def show_cameras_images(scene_data, pre_fix, intrinsic_sel=0):
+   ### viz the camera
+    width = scene_data['width'][intrinsic_sel]
+    height = scene_data['height'][intrinsic_sel]
+    focal_length = scene_data['focal_length'][intrinsic_sel]
+    cx = scene_data['cx'][intrinsic_sel]
+    cy = scene_data['cy'][intrinsic_sel]
+
+    
+    
+    for image_file, image_index, glc2blw4x4 in zip(scene_data['image_name'], scene_data['image_index'], scene_data['c2w4x4']):
+        cvc2glc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        glc2blw4x4_np = np.array(glc2blw4x4)
+        cvc2blw4x4 = glc2blw4x4_np @ cvc2glc
+        translation = cvc2blw4x4[:3, 3]
+        quaternion = rotation_matrix_to_quaternion(cvc2blw4x4[:3,:3])
+
+        tf = rr.Transform3D(translation=translation, rotation=quaternion, from_parent=False)
+        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", tf)
+
+        rr.log(
+            f"world/{pre_fix}image/{pre_fix}{image_index}",
+            rr.Pinhole(
+                resolution=[width, height],
+                focal_length=np.array([focal_length, focal_length]).reshape(-1),
+                principal_point=np.array([cx, cy]).reshape(-1),
+            ),
+        )
+        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward    
+        bgr = cv2.imread(image_file)
+        bgr = cv2.resize(bgr, (width, height), interpolation=cv2.INTER_AREA)
+        bgr[int(cy), int(cx), :] = 0
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))
+
+def rr_show_scene(condition_data, observed_data, rerun_name, asset_3D_path_list):
+    blueprint = set_blueprint(condition_data, observed_data)
+    start_rr(rerun_name, blueprint)
+    rr.set_time_sequence("frame", 0)
+    log_asset_3D(asset_3D_path_list)
+    log_asset_axis()
+    show_cameras_images(condition_data, "cond_", intrinsic_sel = 1)
+    show_cameras_images(observed_data, "observed_")             

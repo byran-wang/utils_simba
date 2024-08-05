@@ -47,8 +47,8 @@ def cartesian_to_spherical(xyz, unit="degree"):
                 "distance": distance.item(),
                 }
     
-def get_relative_trans(c2w4x4):
-    cN2c0 = np.linalg.inv(c2w4x4[0]) @ c2w4x4
+def get_relative_trans(c2w4x4, ref_c2w4x4):
+    cN2c0 = np.linalg.inv(ref_c2w4x4) @ c2w4x4
     return cN2c0
 
 def scale_t(cN2c14x4, scale):

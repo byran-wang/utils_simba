@@ -247,9 +247,9 @@ def ReadHO3DFoundationPose(config):
         assert rgb_f_ind == rgba_f_ind == mask_f_ind == camera_f_ind      
         camera = json.load(open(camera_f, 'r'))
         # K = camera['K_inpaint']
-        # K = camera['K']
+        K = camera['K']
         # K = camera['K_manual']
-        K = camera['K_half_wh']
+        # K = camera['K_half_wh']
         fl_x, fl_y = K[0][0], K[1][1]
         cx, cy = K[0][2], K[1][2]
         height, width = camera['height'], camera['width']

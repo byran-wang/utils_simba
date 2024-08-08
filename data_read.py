@@ -251,10 +251,10 @@ def ReadHO3DFoundationPose(config):
         # K = camera['K_manual']
         # K = camera['K_half_wh']
         fl_x, fl_y = K[0][0], K[1][1]
-        cx, cy = K[0][2], K[1][2]
+        cx, cy = int(K[0][2]), int(K[1][2])
         height, width = camera['height'], camera['width']
-        fov_x = math.atan(width / (2 * fl_x)) * 2
-        fov_y = math.atan(height / (2 * fl_y)) * 2
+        fov_x = math.atan(cx / (fl_x)) * 2
+        fov_y = math.atan(cy / (fl_y)) * 2
         blc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         cvc2blw = np.linalg.inv(camera['blw2cvc'])
         if cam_type == "blc2blw":

@@ -148,7 +148,12 @@ def plot_a_sphere(location, ax, radius=0.01):
     z = radius * np.cos(v) + location[2]              # Offset by location[2]
     ax.plot_surface(x, y, z, color='cyan', alpha=0.6)  # alpha for transparency
 
-def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0, z_scale=10):
+def show_all_views(data, scene_data, asset_3D_paths = None, intrinsic_sel = 0, cam_axis_scale=0.3, axis_limit=1, z_scale=30, uvs=[[302, 290]]):
+    # uvs = [[312.4200134277344, 241.4199981689453]] # principal point of MC1 view_98
+    cx = scene_data['cx'][intrinsic_sel]
+    cy = scene_data['cy'][intrinsic_sel]
+    focal_length = scene_data['focal_length'][intrinsic_sel][0]
+    
     fig = plt.figure(figsize=(20, 16))
     ax = fig.add_subplot(111, projection='3d')
     # plot object origin
@@ -157,14 +162,33 @@ def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0, z_scale=10):
     ax.quiver(*t, *[0, 1, 0], color='g', length=0.3, normalize=False)
     ax.quiver(*t, *[0, 0 ,1], color='b', length=0.3, normalize=False)
     ax.text(*t, "o", fontsize=12, color='black')
-    for i, c2w in enumerate(data['c2ws']):
-        t = c2w[:3, 3]
-        x = c2w[:3,0] * cam_axis_scale
-        y = c2w[:3,1] * cam_axis_scale
-        z = c2w[:3,2] * cam_axis_scale * z_scale
+    for i, glc2blw4x4 in enumerate(data['c2ws']):
+        cvc2glc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        glc2blw4x4_np = np.array(glc2blw4x4)
+        cvc2blw4x4 = glc2blw4x4_np @ cvc2glc
+        t = cvc2blw4x4[:3, 3]
+        x = cvc2blw4x4[:3,0] * cam_axis_scale
+        y = cvc2blw4x4[:3,1] * cam_axis_scale
+        z = cvc2blw4x4[:3,2] * cam_axis_scale * z_scale
         ax.quiver(*t, *x[:3], color='r', length=0.3, normalize=False)
         ax.quiver(*t, *y[:3], color='g', length=0.3, normalize=False)
         ax.quiver(*t, *z[:3], color='b', length=0.3, normalize=False)
+
+        for uv in uvs:
+            X = (uv[0] - cx) / focal_length
+            Y = (uv[1] - cy) / focal_length
+            Z = torch.tensor(1)
+            ray = np.array([X, Y, Z])[None].T
+            ray_cv = ray / np.linalg.norm(ray)
+            ray_gl = cvc2glc[:3, :3] @ ray_cv + cvc2glc[:3, 3][:, None]
+            ray_blw = glc2blw4x4_np[:3, :3] @ ray_gl
+
+            ray_blw_s = ray_blw * cam_axis_scale * z_scale
+            ax.quiver(*t, *ray_blw_s, color='magenta', length=0.3, normalize=False)
+            num_points = 1000
+            points = np.linspace(t, ray_blw_s.squeeze(-1), num_points)
+            from utils_simba.geometry import save_point_cloud_to_ply
+            save_point_cloud_to_ply(points, f"ray_{i}.ply")
         try:
             label = data['labels'][i]
         except:
@@ -172,6 +196,19 @@ def show_all_views(data, cam_axis_scale=0.3, axis_limit=1.0, z_scale=10):
         ax.text(*t, label, fontsize=12, color='magenta')
         if label.startswith('gen'):
             plot_a_sphere(t, ax)
+
+    if asset_3D_paths is not None:
+        interval = 10
+        for asset_3D_path in asset_3D_paths:
+            mesh_info = get_mesh_info(asset_3D_path)
+            mesh_info["vertex_positions"] = mesh_info["vertex_positions"][::interval]
+            mesh_info["vertex_colors"] = mesh_info["vertex_colors"][::interval]
+            x = mesh_info["vertex_positions"][:, 0]
+            y = mesh_info["vertex_positions"][:, 1]
+            z = mesh_info["vertex_positions"][:, 2]
+            colors = mesh_info["vertex_colors"] / 255
+            scatter = ax.scatter(x, y, z, c=colors, cmap='viridis')
+            color_bar = fig.colorbar(scatter)
 
     ax.set_xlabel('X')
     ax.set_ylabel('Y')

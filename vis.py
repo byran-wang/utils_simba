@@ -392,7 +392,7 @@ def show_scene_in_rerun(scene_data):
         rr.log("camera", tf)
         rr.log("camera", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward    
 
-def set_blueprint(condition_data, observed_data):
+def set_blueprint(condition_data, observed_data, observed_prefix="observed_"):
     cond_views = [
         rrb.Spatial2DView(
             name=f"cond_{cond_index}",
@@ -403,7 +403,7 @@ def set_blueprint(condition_data, observed_data):
     observed_views = [
         rrb.Spatial2DView(
             name=f"observed_{observed_index}",
-            origin=f"world/observed_image/observed_{observed_index}",
+            origin=f"world/{observed_prefix}image/{observed_prefix}{observed_index}",
         )
         for observed_index in observed_data["image_index"]
     ]
@@ -486,6 +486,40 @@ def show_cameras_images(scene_data, pre_fix, intrinsic_sel=0):
         bgr[int(cy), int(cx), :] = 0
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))
+
+def show_crop_cameras_images(crop_data, pre_fix):    
+    for rgb, image_index, glc2blw4x4, intrinsic in zip(crop_data['rgb'], crop_data['image_index'], crop_data['c2w4x4'], crop_data['intrinsic']):
+        height, width = rgb.shape[:2]
+        focal_length = intrinsic[0, 0]
+        cx, cy = intrinsic[0, 2], intrinsic[1, 2]
+        cvc2glc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        glc2blw4x4_np = np.array(glc2blw4x4)
+        cvc2blw4x4 = glc2blw4x4_np @ cvc2glc
+        translation = cvc2blw4x4[:3, 3]
+        quaternion = rotation_matrix_to_quaternion(cvc2blw4x4[:3,:3])
+
+        tf = rr.Transform3D(translation=translation, rotation=quaternion, from_parent=False)
+        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", tf)
+
+        rr.log(
+            f"world/{pre_fix}image/{pre_fix}{image_index}",
+            rr.Pinhole(
+                resolution=[width, height],
+                focal_length=np.array([focal_length, focal_length]).reshape(-1),
+                principal_point=np.array([cx, cy]).reshape(-1),
+            ),
+        )
+        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward    
+        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))        
+
+def rr_show_scene_after_crop(condition_data, crop_data, rerun_name, asset_3D_path_list):
+    blueprint = set_blueprint(condition_data, crop_data, observed_prefix="crop_")
+    start_rr(rerun_name, blueprint)
+    rr.set_time_sequence("frame", 0)
+    log_asset_3D(asset_3D_path_list)
+    log_asset_axis()
+    show_cameras_images(condition_data, "cond_", intrinsic_sel = 1)
+    show_crop_cameras_images(crop_data, "crop_")   
 
 def rr_show_scene(condition_data, observed_data, rerun_name, asset_3D_path_list):
     blueprint = set_blueprint(condition_data, observed_data)

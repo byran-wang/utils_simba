@@ -434,7 +434,7 @@ def start_rr(rerun_name, blueprint):
 def log_asset_3D(asset_3D_paths):
     for asset_3D_path in asset_3D_paths:
         mesh_info = get_mesh_info(asset_3D_path)
-        mesh_name = asset_3D_path.split("/")[2]
+        mesh_name = asset_3D_path.split("/")[3]
         rr.log(
             f"world/{mesh_name}", 
             rr.Mesh3D(
@@ -487,9 +487,12 @@ def show_cameras_images(scene_data, pre_fix, intrinsic_sel=0):
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))
 
-def show_crop_cameras_images(crop_data, pre_fix):    
-    for rgb, image_index, glc2blw4x4, intrinsic in zip(crop_data['rgb'], crop_data['image_index'], crop_data['c2w4x4'], crop_data['intrinsic']):
-        height, width = rgb.shape[:2]
+def show_crop_cameras_images(show_data, pre_fix):    
+    for rgb, image_index, glc2blw4x4, intrinsic in zip(show_data['rgb'], show_data['image_index'], show_data['c2w4x4'], show_data['intrinsic']):
+        if rgb is None:
+            height, width = intrinsic[1, 2]*2, intrinsic[0, 2]*2
+        else:
+            height, width = rgb.shape[:2]
         focal_length = intrinsic[0, 0]
         cx, cy = intrinsic[0, 2], intrinsic[1, 2]
         cvc2glc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
@@ -509,8 +512,9 @@ def show_crop_cameras_images(crop_data, pre_fix):
                 principal_point=np.array([cx, cy]).reshape(-1),
             ),
         )
-        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward    
-        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))        
+        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward
+        if rgb != None:    
+            rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))        
 
 def rr_show_scene_after_crop(condition_data, crop_data, rerun_name, asset_3D_path_list):
     blueprint = set_blueprint(condition_data, crop_data, observed_prefix="crop_")
@@ -518,7 +522,7 @@ def rr_show_scene_after_crop(condition_data, crop_data, rerun_name, asset_3D_pat
     rr.set_time_sequence("frame", 0)
     log_asset_3D(asset_3D_path_list)
     log_asset_axis()
-    show_cameras_images(condition_data, "cond_", intrinsic_sel = 1)
+    show_cameras_images(condition_data, "cond_", intrinsic_sel = 0)
     show_crop_cameras_images(crop_data, "crop_")   
 
 def rr_show_scene(condition_data, observed_data, rerun_name, asset_3D_path_list):
@@ -527,5 +531,5 @@ def rr_show_scene(condition_data, observed_data, rerun_name, asset_3D_path_list)
     rr.set_time_sequence("frame", 0)
     log_asset_3D(asset_3D_path_list)
     log_asset_axis()
-    show_cameras_images(condition_data, "cond_", intrinsic_sel = 1)
+    show_cameras_images(condition_data, "cond_", intrinsic_sel = 0)
     show_cameras_images(observed_data, "observed_")             

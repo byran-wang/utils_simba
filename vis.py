@@ -400,13 +400,16 @@ def set_blueprint(condition_data, observed_data, observed_prefix="observed_"):
         )
         for cond_index in condition_data["image_index"]
     ]
-    observed_views = [
-        rrb.Spatial2DView(
-            name=f"observed_{observed_index}",
-            origin=f"world/{observed_prefix}image/{observed_prefix}{observed_index}",
-        )
-        for observed_index in observed_data["image_index"]
-    ]
+    if observed_data is not None:
+        observed_views = [
+            rrb.Spatial2DView(
+                name=f"observed_{observed_index}",
+                origin=f"world/{observed_prefix}image/{observed_prefix}{observed_index}",
+            )
+            for observed_index in observed_data["image_index"]
+        ]
+    else:
+        observed_views = []
     blueprint = rrb.Vertical(
         rrb.Horizontal(
             rrb.Spatial3DView(
@@ -525,11 +528,12 @@ def rr_show_scene_after_crop(condition_data, crop_data, rerun_name, asset_3D_pat
     show_cameras_images(condition_data, "cond_", intrinsic_sel = 0)
     show_crop_cameras_images(crop_data, "crop_")   
 
-def rr_show_scene(condition_data, observed_data, rerun_name, asset_3D_path_list):
+def rr_show_scene(condition_data, rerun_name, asset_3D_path_list, observed_data = None):
     blueprint = set_blueprint(condition_data, observed_data)
     start_rr(rerun_name, blueprint)
     rr.set_time_sequence("frame", 0)
     log_asset_3D(asset_3D_path_list)
     log_asset_axis()
     show_cameras_images(condition_data, "cond_", intrinsic_sel = 0)
-    show_cameras_images(observed_data, "observed_")             
+    if observed_data is not None:
+        show_cameras_images(observed_data, "observed_")         

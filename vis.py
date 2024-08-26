@@ -11,6 +11,7 @@ import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from .geometry import read_point_cloud_from_ply
 
 
 def cm_RdGn(x):
@@ -436,6 +437,8 @@ def start_rr(rerun_name, blueprint):
 
 def log_asset_3D(asset_3D_paths):
     for asset_3D_path in asset_3D_paths:
+        if not os.path.exists(asset_3D_path):
+            continue
         mesh_info = get_mesh_info(asset_3D_path)
         mesh_name = asset_3D_path.split("/")[3]
         rr.log(
@@ -447,6 +450,16 @@ def log_asset_3D(asset_3D_paths):
                 triangle_indices=mesh_info["triangle_indices"],
             ),           
         )  
+
+def log_point_cloud(PC_path_list):
+    for PC_path in PC_path_list:
+        pc = read_point_cloud_from_ply(PC_path)
+        pc_name = PC_path.split("/")[-1]
+        rr.log(
+            f"world/{pc_name}",
+            rr.Points3D(pc, radii=0.03)
+        )
+
 
 def log_asset_axis():
     origins = np.zeros((3, 3))
@@ -519,20 +532,24 @@ def show_crop_cameras_images(show_data, pre_fix):
         if rgb != None:    
             rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))        
 
-def rr_show_scene_after_crop(condition_data, crop_data, rerun_name, asset_3D_path_list):
+def rr_show_scene_after_crop(condition_data, crop_data, rerun_name, asset_3D_path_list, PC_path_list = None):
     blueprint = set_blueprint(condition_data, crop_data, observed_prefix="crop_")
     start_rr(rerun_name, blueprint)
     rr.set_time_sequence("frame", 0)
     log_asset_3D(asset_3D_path_list)
+    if PC_path_list is not None:
+        log_point_cloud(PC_path_list)    
     log_asset_axis()
     show_cameras_images(condition_data, "cond_", intrinsic_sel = 0)
     show_crop_cameras_images(crop_data, "crop_")   
 
-def rr_show_scene(condition_data, rerun_name, asset_3D_path_list, observed_data = None):
+def rr_show_scene(condition_data, rerun_name, asset_3D_path_list, PC_path_list = None, observed_data = None):
     blueprint = set_blueprint(condition_data, observed_data)
     start_rr(rerun_name, blueprint)
     rr.set_time_sequence("frame", 0)
     log_asset_3D(asset_3D_path_list)
+    if PC_path_list is not None:
+        log_point_cloud(PC_path_list)
     log_asset_axis()
     show_cameras_images(condition_data, "cond_", intrinsic_sel = 0)
     if observed_data is not None:

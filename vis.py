@@ -497,7 +497,16 @@ def show_cameras_images(scene_data, pre_fix, intrinsic_sel=0):
             ),
         )
         rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward    
-        bgr = cv2.imread(image_file)
+        bgra = cv2.imread(image_file, cv2.IMREAD_UNCHANGED)
+
+        # Ensure the image has an alpha channel (transparency)
+        if bgra.shape[2] == 4:
+            bgr = bgra[:,:,:3]
+            binary_mask = bgra[..., 3:] > 0.5
+            bgr = (bgr * binary_mask + 255.0 * (1 - binary_mask)).astype(np.uint8)
+        else:
+            bgr = cv2.imread(image_file, cv2.IMREAD_COLOR)
+
         bgr = cv2.resize(bgr, (width, height), interpolation=cv2.INTER_AREA)
         bgr[int(cy), int(cx), :] = 0
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)

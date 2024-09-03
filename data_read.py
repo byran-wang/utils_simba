@@ -399,7 +399,7 @@ def ReadHO3DGTPose(config):
         
     return cam_infos
 
-def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True):
+def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, write_pose=True):
     inpaint_views = config.inpaint_f
 
     InpaintAny_dir = "/home/simba/Documents/project/Inpaint-Anything"
@@ -530,6 +530,18 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True):
                 camera['scale_inpaint'] = align_scale
                 save_json(camera_f, camera)
 
+        if write_pose:
+            data = {
+                "elevation_deg": config['elevation_deg'],
+                "azimuth_deg": config['azimuth_deg'],
+                "fovy_deg": config['fovy_deg'],
+                "distance": config['distance']
+            }
+
+            pose_f = os.path.join(out_dir, f"{image_name}.json")
+            with open(pose_f, 'w') as f:
+                json.dump(data, f, indent=4)
+
 
 def RunPreprocessHO3DGTPose():
     scene = "AP10"
@@ -586,25 +598,108 @@ def RunInpaintInputViews(scene):
         "border_ratio": 0.2,
         "manual_cx": manual_cx_cy[0],
         "manual_cy": manual_cx_cy[1],
+        "elevation_deg": 30,
+        "azimuth_deg": -30,
+        "fovy_deg": 41.15,
+        "distance": 2
     }
     from attrdict import AttrDict
     config = AttrDict(config)
-    inpaint_input_views(config, do_inpaint=False, do_mask=False, do_center=True)
+    inpaint_input_views(config, do_inpaint=False, do_mask=False, do_center=True, write_pose=True)
 
 if __name__ == "__main__":
-    scenes = ["MC1", "ABF12", "ABF14", "AP10", "GPMF13", "GSF10", "MDF11", "ND2", "SB11", "ShSu10", "SiBF10"]
     scenes = [
-                {"name": "MC1",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
-                {"name": "ABF12",   "type": "train",        "inpaint_rgb": "0231.png", "manual_cx_cy": [200, 450]},
-                {"name": "ABF14",   "type": "train",        "inpaint_rgb": "0017.png", "manual_cx_cy": [200, 450]},
-                {"name": "AP10",    "type": "evaluation",   "inpaint_rgb": "0008.png", "manual_cx_cy": [200, 450]},
-                {"name": "GPMF13",  "type": "train",        "inpaint_rgb": "0097.png", "manual_cx_cy": [200, 450]},
-                # {"name": "GSF10",   "type": "train",        "inpaint_rgb": "xxxx.png"},
-                # {"name": "MDF11",   "type": "train",        "inpaint_rgb": "xxxx.png"},
-                # {"name": "ND2",     "type": "train",        "inpaint_rgb": "xxxx.png"},
-                # {"name": "SB11",    "type": "evaluation",   "inpaint_rgb": "xxxx.png"},
-                # {"name": "ShSu10",  "type": "train",        "inpaint_rgb": "xxxx.png"},
-                # {"name": "SiBF10",  "type": "train",        "inpaint_rgb": "xxxx.png"},
+                # {"name": "ABF12",   "type": "train",        "inpaint_rgb": "0231.png", "manual_cx_cy": [200, 450]},
+                # {"name": "ABF14",   "type": "train",        "inpaint_rgb": "0017.png", "manual_cx_cy": [200, 450]},
+                # {"name": "AP10",    "type": "evaluation",   "inpaint_rgb": "0008.png", "manual_cx_cy": [200, 450]},
+                # {"name": "GPMF13",  "type": "train",        "inpaint_rgb": "0081.png", "manual_cx_cy": [200, 450]},
+                # {"name": "ND2",  "type": "train",        "inpaint_rgb": "0029.png", "manual_cx_cy": [200, 450]},
+        
+
+                # {"name": "ABF10",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "ABF11",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "ABF12",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "ABF13",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "ABF14",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                
+                # {"name": "AP10",     "type": "evaluation",        "inpaint_rgb": "0342.png", "manual_cx_cy": [310, 259]},
+                # {"name": "AP11",     "type": "evaluation",        "inpaint_rgb": "0348.png", "manual_cx_cy": [310, 259]},
+                # {"name": "AP12",     "type": "evaluation",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "AP13",     "type": "evaluation",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+
+                # {"name": "BB10",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "BB11",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "BB12",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "BB13",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "BB14",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+
+                # {"name": "GPMF10",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "GPMF11",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "GPMF12",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "GPMF13",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+           
+                # {"name": "GSF10",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "GSF11",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "GSF12",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "GSF13",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "GSF14",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},           
+
+                {"name": "MC1",     "type": "train",        "inpaint_rgb": "0169.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MC2",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MC4",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MC5",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},                
+                # {"name": "MC6",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+
+                # {"name": "MDF10",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MDF11",     "type": "train",        "inpaint_rgb": "0659.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MDF12",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MDF13",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MDF14",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+
+                # {"name": "MPM10",     "type": "evaluation",        "inpaint_rgb": "0000.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MPM11",     "type": "evaluation",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MPM12",     "type": "evaluation",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MPM13",     "type": "evaluation",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "MPM14",     "type": "evaluation",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},     
+
+                # {"name": "ND2",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},         
+
+                # {"name": "SB10",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SB11",     "type": "evaluation",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SB12",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SB13",     "type": "evaluation",        "inpaint_rgb": "0000.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SB14",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},                       
+
+                # {"name": "ShSu10",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "ShSu12",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "ShSu13",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "ShSu14",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+
+
+                # {"name": "SiBF10",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SiBF11",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SiBF12",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SiBF13",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SiBF14",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+
+
+                # {"name": "SiS1",     "type": "train",        "inpaint_rgb": "0404.png", "manual_cx_cy": [310, 259]},
+
+                # {"name": "SM1",     "type": "evaluation",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SM2",     "type": "train",        "inpaint_rgb": "0000.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SM3",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SM4",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SM5",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+
+                # {"name": "SMu1",     "type": "train",        "inpaint_rgb": "0404.png", "manual_cx_cy": [310, 259]},
+
+                # {"name": "SMu40",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SMu41",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SMu42",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+
+                # {"name": "SS1",     "type": "train",        "inpaint_rgb": "0298.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SS2",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
+                # {"name": "SS3",     "type": "train",        "inpaint_rgb": "0098.png", "manual_cx_cy": [310, 259]},
             ]   
     # scenes = ["MC1"]
     for scene in scenes:

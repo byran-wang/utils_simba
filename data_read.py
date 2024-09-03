@@ -580,7 +580,7 @@ def RunPreprocessHO3DFoundationPose(scene):
         "out_dir": "/home/simba/Documents/project/diff_object/threestudio/dataset/HO3D_v3_foundation_pose/" + scene_name,
         "start_frame": 0,
         "end_frame": -1,
-        "frame_interval": 5,
+        "frame_interval": 3,
         "exclude_frames": [],
     }
     from attrdict import AttrDict

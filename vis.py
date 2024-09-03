@@ -417,9 +417,9 @@ def set_blueprint(condition_data, observed_data, observed_prefix="observed_"):
                 name="3D",
                 origin="world",
                 # Default for `ImagePlaneDistance` so that the pinhole frustum visualizations don't take up too much space.
-                defaults=[rr.components.ImagePlaneDistance(0.5)],
+                defaults=[rr.components.ImagePlaneDistance(0.2)],
                 # Transform arrows for the vehicle shouldn't be too long.
-                overrides={"world/object": [rr.components.AxisLength(5.0)]},
+                overrides={"world/object": [rr.components.AxisLength(2.0)]},
             ),
             # rrb.TextDocumentView(origin="description", name="Description"),
             column_shares=[3, 1],

@@ -441,6 +441,7 @@ def log_asset_3D(asset_3D_paths):
             continue
         mesh_info = get_mesh_info(asset_3D_path)
         mesh_name = asset_3D_path.split("/")[3]
+        mesh_name = f"ms_{mesh_name}"
         rr.log(
             f"world/{mesh_name}", 
             rr.Mesh3D(
@@ -455,6 +456,7 @@ def log_point_cloud(PC_path_list):
     for PC_path in PC_path_list:
         pc = read_point_cloud_from_ply(PC_path)
         pc_name = PC_path.split("/")[-1]
+        pc_name = f"pc_{pc_name}"
         rr.log(
             f"world/{pc_name}",
             rr.Points3D(pc, radii=0.03)

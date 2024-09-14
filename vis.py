@@ -438,6 +438,7 @@ def start_rr(rerun_name, blueprint):
 def log_asset_3D(asset_3D_paths):
     for asset_3D_path in asset_3D_paths:
         if not os.path.exists(asset_3D_path):
+            print(f"asset_3D_path {asset_3D_path} does not exist")
             continue
         mesh_info = get_mesh_info(asset_3D_path)
         mesh_name = asset_3D_path.split("/")[3]
@@ -454,6 +455,9 @@ def log_asset_3D(asset_3D_paths):
 
 def log_point_cloud(PC_path_list):
     for PC_path in PC_path_list:
+        if not os.path.exists(PC_path):
+            print(f"PC_path {PC_path} does not exist")
+            continue        
         pc = read_point_cloud_from_ply(PC_path)
         pc_name = PC_path.split("/")[-1]
         pc_name = f"pc_{pc_name}"

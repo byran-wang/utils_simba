@@ -27,7 +27,6 @@ class CameraInfo(NamedTuple):
     fov_y: float
     cx: float
     cy: float
-    scale_inpaint: float
     rgb_name: str
     rgba_name: str
     mask_name: str
@@ -273,7 +272,7 @@ def ReadHO3DFoundationPose(config):
             c2w_final = cvc2blw
         else:
             assert "Unknown camera type"
-        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, scale_inpaint=camera['scale_inpaint'],
+        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
                                     rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
                                     height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         

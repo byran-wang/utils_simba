@@ -53,3 +53,12 @@ def get_rank():
 
 def parse_version(ver):
     return version.parse(ver)
+
+def merge_json(source_json_f1,source_json_f2, output_json_f):
+    with open(source_json_f1, 'r') as f:
+        source1 = json.load(f)
+    with open(source_json_f2, 'r') as f:
+        source2 = json.load(f)
+    source1.update(source2)
+    with open(output_json_f, 'w') as f:
+        json.dump(source1, f, indent=4) 

@@ -458,12 +458,12 @@ def log_point_cloud(PC_path_list):
         if not os.path.exists(PC_path):
             print(f"PC_path {PC_path} does not exist")
             continue        
-        pc = read_point_cloud_from_ply(PC_path)
+        pc_pos, pc_color = read_point_cloud_from_ply(PC_path)
         pc_name = PC_path.split("/")[-1]
         pc_name = f"pc_{pc_name}"
         rr.log(
             f"world/{pc_name}",
-            rr.Points3D(pc, radii=0.03)
+            rr.Points3D(pc_pos, colors=pc_color, radii=0.003)
         )
 
 

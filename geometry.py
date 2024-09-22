@@ -135,14 +135,26 @@ def depth_to_pts3d(focals, principal_points, c2w4x4, depth):
     return geotrf(c2w4x4, ptmaps_in_c) # (N, P, 3)
 
 
-def save_point_cloud_to_ply(pts_3d, filepath):
+def save_point_cloud_to_ply(pts_3d, filepath, colors=None):
     # Create a structured array for the points
-    points_array = np.array([(point[0], point[1], point[2]) for point in pts_3d],
-                            dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
 
-    # Create a PlyElement object
+
+    if colors is not None:
+        colors = colors.astype(np.uint8)
+        dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
+                ('red', 'u1'), ('green', 'u1'), ('blue', 'u1')]
+
+        points_array = np.array(
+            [(*point, *color) for point, color in zip(pts_3d, colors)],
+            dtype=dtype
+        )                
+
+    else:
+        dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4')]
+        points_array = np.array([(point[0], point[1], point[2]) for point in pts_3d],
+                            dtype=dtype)
+
     ply_element = PlyElement.describe(points_array, 'vertex')
-
     # Write to a PLY file
     PlyData([ply_element]).write(filepath)
     print(f"Point cloud saved to {filepath}")
@@ -154,8 +166,15 @@ def read_point_cloud_from_ply(filepath):
 
     # Extract the vertex data (points) from the PLY file
     vertex_data = ply_data['vertex']
+    try:
+        red = np.array(vertex_data['red'])
+        green = np.array(vertex_data['green'])
+        blue = np.array(vertex_data['blue'])
+        colors = np.vstack((red, green, blue)).T
+    except:
+        colors = None
 
     # Convert the data into a NumPy array
-    points = np.vstack([vertex_data['x'], vertex_data['y'], vertex_data['z']]).T
+    positions = np.vstack([vertex_data['x'], vertex_data['y'], vertex_data['z']]).T
 
-    return points    
+    return positions, colors    

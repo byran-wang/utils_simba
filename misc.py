@@ -62,3 +62,18 @@ def merge_json(source_json_f1,source_json_f2, output_json_f):
     source1.update(source2)
     with open(output_json_f, 'w') as f:
         json.dump(source1, f, indent=4) 
+
+
+def list_folders(directory):
+    try:
+        # List all entries in the directory
+        entries = os.listdir(directory)
+        # Filter out entries that are directories
+        folders = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
+        return folders
+    except FileNotFoundError:
+        print(f"The directory {directory} does not exist.")
+        return []
+    except PermissionError:
+        print(f"Permission denied to access {directory}.")
+        return []

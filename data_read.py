@@ -247,12 +247,21 @@ def ReadHO3DFoundationPose(config):
 
     K = None
     cam_infos = [] 
-    for ci, [rgb_f, rgba_f, mask_f, camera_f] in enumerate(zip(rgb_all, rgba_all, mask_all, camera_all)):
-        rgb_f_ind = op.basename(rgb_f).split(".")[0]
-        rgba_f_ind = op.basename(rgba_f).split(".")[0]
-        mask_f_ind = op.basename(mask_f).split(".")[0]
+    # for ci, [rgb_f, rgba_f, mask_f, camera_f] in enumerate(zip(rgb_all, rgba_all, mask_all, camera_all)):
+    for ci, camera_f in enumerate(camera_all):
         camera_f_ind = op.basename(camera_f).split(".")[0]
-        assert rgb_f_ind == rgba_f_ind == mask_f_ind == camera_f_ind      
+        rgb_f = op.join(config['rgb_path'], f"{camera_f_ind}.png")
+        rgba_f = op.join(config['rgba_path'], f"{camera_f_ind}.png")
+        mask_f = op.join(config['mask_path'], f"{camera_f_ind}.png")
+        if not (rgb_f in rgb_all):
+            print(f"Error: {rgb_f} not found")
+            assert False
+        if not (rgba_f in rgba_all):
+            print(f"Error: {rgba_f} not found")
+            assert False
+        if not (mask_f in mask_all):
+            print(f"Error: {mask_f} not found")
+            assert False
         camera = json.load(open(camera_f, 'r'))
         # K = camera['K_inpaint']
         K = camera['K']
@@ -272,7 +281,7 @@ def ReadHO3DFoundationPose(config):
             c2w_final = cvc2blw
         else:
             assert "Unknown camera type"
-        cam_infos.append(CameraInfo(uid=ci, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
+        cam_infos.append(CameraInfo(uid=camera_f_ind, c2w4x4=c2w_final, fl_x=fl_x, fl_y=fl_y, cx=cx, cy=cy, 
                                     rgb_name=rgb_f, rgba_name=rgba_f, mask_name=mask_f, pts3d=None,
                                     height=height, width=width, fov_x=fov_x, fov_y=fov_y))
         

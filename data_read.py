@@ -201,6 +201,8 @@ def PreprocessHO3DFoundationPose(config):
 
     meta = pickle.load(open(intrinsic_f,'rb'))
     K = meta['camMat']
+    fmt = '%.12f'
+    np.savetxt(f'{intrinsic_dir}/intrins.txt', K, fmt=fmt, delimiter=' ')
     camera_param = {}
     for ci, [rgb_f, pose_f, mask_f, depth_f] in enumerate(valid_frames):
         rgb_f_out = os.path.join(images_dir, f"{ci:04d}.png")

@@ -3,6 +3,12 @@ import cv2
 
 def save_depth(depth, fname, scale= 0.00012498664727900177):
     depth_scale = 1 / scale
+    max_depth = 2**16 / (1/ scale)     # max 8.19112491607666 = 2**16 / (1/ 0.00012498664727900177)
+    exceed_depth = depth[depth > max_depth]
+    if len(exceed_depth) > 0:
+        print(f"Warning: {len(exceed_depth)} depth values exceed the maximum depth of {max_depth}. Clipping to {max_depth}.")
+    depth = depth.clip(0, max_depth)
+
     depth_scaled = (depth * depth_scale).astype(np.uint16)
     depth_lsb = np.bitwise_and(depth_scaled, 0xFF)  # Least significant byte
     depth_msb = np.right_shift(depth_scaled, 8)  # Most significant byte

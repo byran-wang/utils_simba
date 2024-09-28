@@ -2,6 +2,8 @@ import torch
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
+from PIL import Image
+import io
 
 # image shape should be [height, width, channels] and in range [0, 1]
 def show_img(img, normalize=False, title=None, off_axis=True):
@@ -44,3 +46,9 @@ def read_mask(path):
     else:
         mask = np.ones_like(image[:, :, 0])
     return mask
+
+def compress_image(rgb_array, format="JPEG", quality=75):
+    pil_image = Image.fromarray(rgb_array)
+    buffer = io.BytesIO()
+    pil_image.save(buffer, format=format, quality=quality)
+    return buffer.getvalue()

@@ -429,9 +429,24 @@ def set_blueprint(condition_data, observed_data, observed_prefix="observed_"):
     )
     return blueprint
 
-def start_rr(rerun_name, blueprint):
+def start_rr(rerun_name="my_viz", blueprint=None):
     rr.init(rerun_name, default_enabled=True, strict=True)
     rec: RecordingStream = rr.get_global_data_recording()  # type: ignore[assignment]
+    if blueprint is None:
+        blueprint = rrb.Vertical(
+            rrb.Spatial3DView(
+                name="3D",
+                origin="world",
+                # Default for `ImagePlaneDistance` so that the pinhole frustum visualizations don't take up too much space.
+                defaults=[rr.components.ImagePlaneDistance(0.2)],
+                # Transform arrows for the vehicle shouldn't be too long.
+                overrides={"world/object": [rr.components.AxisLength(2.0)]},
+            ),
+            rrb.Horizontal(
+                rrb.Spatial2DView(name="Camera", origin="/world/image"),
+            ),
+            row_shares=[3, 1],
+        )
     rec.spawn(default_blueprint=blueprint)
     rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)   
 
@@ -453,7 +468,7 @@ def log_asset_3D(asset_3D_paths):
             ),           
         )  
 
-def log_point_cloud(PC_path_list):
+def log_point_cloud(PC_path_list, log_path_prefix="world/"):
     for PC_path in PC_path_list:
         if not os.path.exists(PC_path):
             print(f"PC_path {PC_path} does not exist")
@@ -462,17 +477,18 @@ def log_point_cloud(PC_path_list):
         pc_name = PC_path.split("/")[-1]
         pc_name = f"pc_{pc_name}"
         rr.log(
-            f"world/{pc_name}",
-            rr.Points3D(pc_pos, colors=pc_color, radii=0.003)
+            f"{log_path_prefix}{pc_name}",
+            rr.Points3D(pc_pos, colors=pc_color, radii=0.003),
+            timeless=True
         )
 
 
-def log_asset_axis():
+def log_asset_axis(log_path_prefix="world/", scale=1.0):
     origins = np.zeros((3, 3))
-    ends = np.eye(3)
+    ends = np.eye(3) * scale
     colors = np.eye(3,4)
     colors[:,-1] = 1
-    rr.log("world/axis", rr.Arrows3D(origins=origins, vectors=ends, colors=colors))
+    rr.log(f"{log_path_prefix}axis", rr.Arrows3D(origins=origins, vectors=ends, colors=colors))
 
 def show_cameras_images(scene_data, pre_fix, intrinsic_sel=0):
    ### viz the camera

@@ -488,7 +488,7 @@ def log_asset_axis(log_path_prefix="world/", scale=1.0):
     ends = np.eye(3) * scale
     colors = np.eye(3,4)
     colors[:,-1] = 1
-    rr.log(f"{log_path_prefix}axis", rr.Arrows3D(origins=origins, vectors=ends, colors=colors))
+    rr.log(f"{log_path_prefix}axis", rr.Arrows3D(origins=origins, vectors=ends, colors=colors), timeless=True)
 
 def show_cameras_images(scene_data, pre_fix, intrinsic_sel=0):
    ### viz the camera
@@ -585,3 +585,28 @@ def rr_show_scene(condition_data, rerun_name, asset_3D_path_list, PC_path_list =
     show_cameras_images(condition_data, "cond_", intrinsic_sel = 0)
     if observed_data is not None:
         show_cameras_images(observed_data, "observed_")         
+
+def rr_show_trajectory(points,pre_fix="", radii=0.01):
+    num_points = len(points)
+    # Define start and end colors
+    start_color = np.array([200, 200, 200])  # Light Purple
+    end_color = np.array([75, 0, 130])       # Dark Purple
+    # Generate a gradient for each RGB channel
+    reds = np.linspace(start_color[0], end_color[0], num_points)
+    greens = np.linspace(start_color[1], end_color[1], num_points)
+    blues = np.linspace(start_color[2], end_color[2], num_points)
+
+    colors = np.stack([reds, greens, blues], axis=1).astype(np.uint8)
+
+    for i in range(num_points-1):
+        point = points[i:i+2]
+        color = colors[i:i+2]
+        rr.log(
+            f"{pre_fix}trajectory_{i}",
+            rr.LineStrips3D(
+                point,
+                radii=0.001,
+                colors=color
+            ),
+            timeless=True
+        )         

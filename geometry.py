@@ -178,3 +178,12 @@ def read_point_cloud_from_ply(filepath):
     positions = np.vstack([vertex_data['x'], vertex_data['y'], vertex_data['z']]).T
 
     return positions, colors    
+
+def get_revert_tvec(tvec, quat_xyzw):
+    from scipy.spatial.transform import Rotation as R
+    rotation = R.from_quat(quat_xyzw)
+    rot_matrix = rotation.as_matrix()
+    inverse_rot_matrix = rot_matrix.T
+    reverse_tvec = -inverse_rot_matrix @ tvec
+    return reverse_tvec
+    

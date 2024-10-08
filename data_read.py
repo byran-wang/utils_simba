@@ -86,6 +86,8 @@ def readCamerasFromBlenderJson(config):
         blw2cvw = np.array([[0, 1, 0, 0],[0, 0 , -1, 0], [-1, 0, 0, 0], [0, 0, 0, 1]])
         blc2cvc = np.array([[1, 0, 0, 0],[0, -1 , 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         cvw2blw = np.array([[0, 0, -1, 0],[1, 0 , 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]])
+        blc2glc = np.array([[1, 0, 0, 0],[0, 1 , 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+        glw2blw = np.array([[0, 0, 1, 0],[1, 0 , 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]])
         for idx, frame in enumerate(meta["frames"]):
             rgba_f = os.path.join(path, frame["file_path"])
             rgba_base_name = os.path.basename(rgba_f)
@@ -97,7 +99,10 @@ def readCamerasFromBlenderJson(config):
                 blc2blw = np.array(frame["transform_matrix"]) # frame["transform_matrix"] is camera.matrix_world in Blender format from the camera to the world
                 blw2blc = np.linalg.inv(blc2blw)
                 # c2w_cv = gl_to_cv_t @ c2w_gl
-                if cam_type == "cvw2cvc":
+                if cam_type == "glw2glc":
+                    glw2glc = blc2glc @ blw2blc @ glw2blw
+                    c2w_final = glw2glc
+                elif cam_type == "cvw2cvc":
                     cvw2cvc = blc2cvc @ blw2blc @ cvw2blw
                     c2w_final = cvw2cvc
                 elif cam_type == "cvc2cvw":

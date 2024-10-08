@@ -468,7 +468,7 @@ def log_asset_3D(asset_3D_paths):
             ),           
         )  
 
-def log_point_cloud(PC_path_list, log_path_prefix="world/"):
+def log_point_cloud(PC_path_list, log_path_prefix="world/", radii=0.003):
     for PC_path in PC_path_list:
         if not os.path.exists(PC_path):
             print(f"PC_path {PC_path} does not exist")
@@ -478,7 +478,7 @@ def log_point_cloud(PC_path_list, log_path_prefix="world/"):
         pc_name = f"pc_{pc_name}"
         rr.log(
             f"{log_path_prefix}{pc_name}",
-            rr.Points3D(pc_pos, colors=pc_color, radii=0.003),
+            rr.Points3D(pc_pos, colors=pc_color, radii=radii),
             timeless=True
         )
 

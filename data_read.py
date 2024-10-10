@@ -421,7 +421,30 @@ def ReadHO3DGTPose(config):
     return cam_infos
 
 def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, write_pose=True):
-    inpaint_views = config.inpaint_f
+    if config.inpaint_select_strategy == "manual":
+        inpaint_f = Path(config.image_dir) / f"{config.cond_view:04d}.png"
+    else:
+        max_value = 0
+        for i, ref_view in enumerate(config.ref_views):
+            image_f = Path(config.image_dir) / f"{ref_view:04d}.png"
+            mask_f = image_f.parent.parent / "masks" / f"{ref_view:04d}.png"
+            mask = cv2.imread(str(mask_f), cv2.IMREAD_UNCHANGED)
+            SEGM_IDS = {"bg": 0, "object": 50, "right": 150, "left": 250}
+            object_pixels = (mask == SEGM_IDS["object"]).sum()
+            hand_pixels = (mask == SEGM_IDS["right"]).sum()
+            if config.inpaint_select_strategy == "object_hand_ratio":
+                object_hand_ratio = object_pixels / hand_pixels
+                if object_hand_ratio > max_value:
+                    max_value = object_hand_ratio
+                    inpaint_f = image_f
+            elif config.inpaint_select_strategy == "object_pixel_max":
+                if object_pixels > max_value:
+                    max_value = object_pixels
+                    inpaint_f = image_f
+            else:
+                # assert and print error message
+                assert False, "Unknown inpaint_select_strategy"
+    print(f"Selected inpaint view: {inpaint_f}")
 
     InpaintAny_dir = "/home/simba/Documents/project/Inpaint-Anything"
     InpaintAny_py = "/home/simba/anaconda3/envs/chatcap/bin/python"
@@ -431,12 +454,12 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
     Cutie_py = "/home/simba/anaconda3/envs/py38cu118/bin/python"
     Cutie_script = os.path.join(Cutie_dir, "interactive_demo.py")
     Cutie_workspace_dir = os.path.join(Cutie_dir, "workspace")
-
-    for i, inpaint_view in enumerate(inpaint_views):
-        out_dir = os.path.join(os.path.dirname(inpaint_view), "../inpaint")
-        cameras_dir = os.path.join(os.path.dirname(inpaint_view), "../cameras")
+    # for i, inpaint_f in enumerate(inpaint_views):
+    if 1:
+        out_dir = config.out_dir
+        # cameras_dir = os.path.join(os.path.dirname(inpaint_view), "../cameras")
         os.makedirs(out_dir, exist_ok=True)
-        image_name = os.path.basename(inpaint_view).split(".")[0]
+        image_name = os.path.basename(inpaint_f).split(".")[0]
 
         inpaint_video_file = os.path.join(out_dir, image_name, "image", image_name + ".mp4")
         inpaint_mask_file = os.path.join(out_dir, image_name, "mask", f"{image_name}.png")
@@ -447,7 +470,7 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
         if do_inpaint:
             inpainting_command = [
                 InpaintAny_py, InpaintAny_script,
-                "--input_img", inpaint_view,
+                "--input_img", inpaint_f,
                 "--coords_type", "click",
                 "--point_coords", "200", "450",
                 "--point_labels", "1",
@@ -460,7 +483,7 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
             ]
             
             subprocess.run(inpainting_command, check=True, cwd=InpaintAny_dir)
-            print(f"Finished inpainting {inpaint_view}")
+            print(f"Finished inpainting {inpaint_f}")
             print(f"Output saved to {out_dir}/{image_name}")
             selected_number = input("Please enter inpaint selected number [0, 1 or 2]:")
             inpaint_file = os.path.join(out_dir, image_name, f"inpainted_with_mask_{selected_number}.png")

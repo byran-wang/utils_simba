@@ -532,24 +532,24 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
             inpaint_rgba_center_f = os.path.join(out_dir, f"{image_name}_rgba_center.png")
             cv2.imwrite(inpaint_rgba_center_f, inpaint_rgba_center)
 
-            # algine optical center and scale
-            align_cx = int((x_min + x_max) / 2)
-            align_cy = int((y_min + y_max) / 2)            
-            all_cameras = sorted(glob(f"{cameras_dir}/*.json"))     
-            for camera_f in all_cameras:
-                camera = json.load(open(camera_f, 'r'))
-                camera['K_inpaint'] = copy.deepcopy(camera['K'])
-                camera['K_inpaint'][0][2] = align_cx
-                camera['K_inpaint'][1][2] = align_cy
-                camera['K_manual'] = copy.deepcopy(camera['K'])
-                camera['K_manual'][0][2] = config['manual_cx']
-                camera['K_manual'][1][2] = config['manual_cy']
-                camera['K_half_wh'] = copy.deepcopy(camera['K'])
-                camera['K_half_wh'][0][2] = camera['width'] // 2
-                camera['K_half_wh'][1][2] = camera['height'] // 2
-                align_scale = scale * camera['height'] / config['inpaint_size']
-                camera['scale_inpaint'] = align_scale
-                save_json(camera_f, camera)
+            # # algine optical center and scale
+            # align_cx = int((x_min + x_max) / 2)
+            # align_cy = int((y_min + y_max) / 2)            
+            # all_cameras = sorted(glob(f"{cameras_dir}/*.json"))     
+            # for camera_f in all_cameras:
+            #     camera = json.load(open(camera_f, 'r'))
+            #     camera['K_inpaint'] = copy.deepcopy(camera['K'])
+            #     camera['K_inpaint'][0][2] = align_cx
+            #     camera['K_inpaint'][1][2] = align_cy
+            #     camera['K_manual'] = copy.deepcopy(camera['K'])
+            #     camera['K_manual'][0][2] = config['manual_cx']
+            #     camera['K_manual'][1][2] = config['manual_cy']
+            #     camera['K_half_wh'] = copy.deepcopy(camera['K'])
+            #     camera['K_half_wh'][0][2] = camera['width'] // 2
+            #     camera['K_half_wh'][1][2] = camera['height'] // 2
+            #     align_scale = scale * camera['height'] / config['inpaint_size']
+            #     camera['scale_inpaint'] = align_scale
+            #     save_json(camera_f, camera)
 
         if write_pose:
             data = {

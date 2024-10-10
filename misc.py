@@ -72,8 +72,6 @@ def list_folders(directory):
         folders = [entry for entry in entries if os.path.isdir(os.path.join(directory, entry))]
         return folders
     except FileNotFoundError:
-        print(f"The directory {directory} does not exist.")
         return []
     except PermissionError:
-        print(f"Permission denied to access {directory}.")
         return []

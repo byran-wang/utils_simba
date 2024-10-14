@@ -11,7 +11,7 @@ import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from .geometry import read_point_cloud_from_ply
+from .geometry import read_point_cloud_from_ply, read_point_cloud_from_obj
 
 
 def cm_RdGn(x):
@@ -482,6 +482,23 @@ def log_point_cloud(PC_path_list, log_path_prefix="world/", radii=0.003):
             timeless=True
         )
 
+def log_obj_model(obj_path_list, log_path_prefix="world/", radii=0.003):
+    for obj_file in obj_path_list:
+        if not os.path.exists(obj_file):
+            print(f"PC_path {obj_file} does not exist")
+            continue        
+        obj_file_dir = '/'.join(obj_file.split('/')[:-1])
+        texture_file = obj_file_dir + '/' + "texture_kd.jpg"
+        obj_pos, obj_color = read_point_cloud_from_obj(obj_file, texture_file)
+        obj_name = obj_file.split("/")[-1]
+        obj_name_prefix = obj_file.split("/")[3]
+        obj_name = f"obj_{obj_name_prefix}_{obj_name}"
+        rr.log(
+            f"{log_path_prefix}{obj_name}",
+            rr.Points3D(obj_pos, colors=obj_color, radii=radii),
+            timeless=True
+        )
+
 
 def log_asset_axis(log_path_prefix="world/", scale=1.0):
     origins = np.zeros((3, 3))
@@ -563,13 +580,15 @@ def show_crop_cameras_images(show_data, pre_fix):
         if rgb != None:    
             rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))        
 
-def rr_show_scene_after_crop(condition_data, crop_data, rerun_name, asset_3D_path_list, PC_path_list = None):
+def rr_show_scene_after_crop(condition_data, crop_data, rerun_name, asset_3D_path_list, PC_path_list = None, obj_path_list = None):
     blueprint = set_blueprint(condition_data, crop_data, observed_prefix="crop_")
     start_rr(rerun_name, blueprint)
     rr.set_time_sequence("frame", 0)
     log_asset_3D(asset_3D_path_list)
     if PC_path_list is not None:
-        log_point_cloud(PC_path_list)    
+        log_point_cloud(PC_path_list, log_path_prefix="world/pcs/")
+    if obj_path_list is not None:
+        log_obj_model(obj_path_list, log_path_prefix="world/pcs/")
     log_asset_axis()
     show_cameras_images(condition_data, "cond_", intrinsic_sel = 0)
     show_crop_cameras_images(crop_data, "crop_")   
@@ -580,7 +599,7 @@ def rr_show_scene(condition_data, rerun_name, asset_3D_path_list, PC_path_list =
     rr.set_time_sequence("frame", 0)
     log_asset_3D(asset_3D_path_list)
     if PC_path_list is not None:
-        log_point_cloud(PC_path_list)
+        log_point_cloud(PC_path_list, log_path_prefix="world/pcs/")
     log_asset_axis()
     show_cameras_images(condition_data, "cond_", intrinsic_sel = 0)
     if observed_data is not None:

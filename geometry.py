@@ -2,6 +2,8 @@ import numpy as np
 import math
 import torch
 from plyfile import PlyData, PlyElement
+import trimesh
+from PIL import Image
 
 def fast_depthmap_to_pts3d(depth, pixel_grid, focal, pp):
     """
@@ -176,6 +178,35 @@ def read_point_cloud_from_ply(filepath):
 
     # Convert the data into a NumPy array
     positions = np.vstack([vertex_data['x'], vertex_data['y'], vertex_data['z']]).T
+
+    return positions, colors    
+
+# Function to read PLY file and extract point clouds
+def read_point_cloud_from_obj(obj_file, texture_file):
+    # Step 1: Load the OBJ model using trimesh
+    mesh = trimesh.load(obj_file, force='mesh')
+
+    # Step 2: Get vertex positions and face indices
+    positions = mesh.vertices            # numpy array of shape (n_vertices, 3)
+    faces = mesh.faces                   # numpy array of shape (n_faces, 3)
+
+    # Step 3: Load the texture image using PIL
+    texture = Image.open(texture_file).convert('RGB')  # Ensure it's in RGB format
+    texture_data = np.asarray(texture)    # Convert image to numpy array
+    texture_height, texture_width = texture.size
+
+    # Step 4: Get UV coordinates from the mesh
+    uv_coords = mesh.visual.uv            # numpy array of shape (n_vertices, 2)
+
+    # Ensure UV coordinates are within [0, 1]
+    uv_coords = np.clip(uv_coords, 0, 1)
+
+    # Step 5: Map UV coordinates to texture pixel indices
+    u_indices = (uv_coords[:, 0] * (texture_width - 1)).astype(np.int32)
+    v_indices = ((1 - uv_coords[:, 1]) * (texture_height - 1)).astype(np.int32)  # Invert V-axis
+
+    # Step 6: Get colors from the texture image
+    colors = texture_data[v_indices, u_indices] / 255.0  # Normalize RGB values to [0, 1]
 
     return positions, colors    
 

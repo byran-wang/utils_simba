@@ -409,6 +409,13 @@ def set_blueprint(condition_data, observed_data, observed_prefix="observed_"):
             )
             for observed_index in observed_data["image_index"]
         ]
+        novel_views = [
+            rrb.Spatial2DView(
+                name=f"novel_{novel_index}",
+                origin=f"world/novel_image/novel_{novel_index}",
+            )
+            for novel_index in range(10)
+        ]
     else:
         observed_views = []
     blueprint = rrb.Vertical(
@@ -424,7 +431,7 @@ def set_blueprint(condition_data, observed_data, observed_prefix="observed_"):
             # rrb.TextDocumentView(origin="description", name="Description"),
             column_shares=[3, 1],
         ),
-        rrb.Grid(*(cond_views+observed_views)),
+        rrb.Grid(*(cond_views+observed_views+novel_views)),
         row_shares=[4, 2],
     )
     return blueprint
@@ -554,7 +561,8 @@ def show_cameras_images(scene_data, pre_fix, intrinsic_sel=0):
 def show_crop_cameras_images(show_data, pre_fix):    
     for rgb, image_index, glc2blw4x4, intrinsic in zip(show_data['rgb'], show_data['image_index'], show_data['c2w4x4'], show_data['intrinsic']):
         if rgb is None:
-            height, width = intrinsic[1, 2]*2, intrinsic[0, 2]*2
+            height, width = int(intrinsic[1, 2]*2), int(intrinsic[0, 2]*2)
+            rgb = np.zeros((height, width, 3), dtype=np.uint8)
         else:
             height, width = rgb.shape[:2]
         focal_length = intrinsic[0, 0]
@@ -577,8 +585,8 @@ def show_crop_cameras_images(show_data, pre_fix):
             ),
         )
         rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward
-        if rgb != None:    
-            rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))        
+        # if rgb != None:    
+        rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", rr.Image(rgb))        
 
 def rr_show_scene_after_crop(condition_data, crop_data, rerun_name, asset_3D_path_list, PC_path_list = None, obj_path_list = None):
     blueprint = set_blueprint(condition_data, crop_data, observed_prefix="crop_")

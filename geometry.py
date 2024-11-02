@@ -4,6 +4,7 @@ import torch
 from plyfile import PlyData, PlyElement
 import trimesh
 from PIL import Image
+import open3d as o3d
 
 def fast_depthmap_to_pts3d(depth, pixel_grid, focal, pp):
     """
@@ -210,6 +211,41 @@ def read_point_cloud_from_obj(obj_file, texture_file):
 
     return positions, colors    
 
+def convert_point_cloud(pc_f, pc_normalized_f, transformation_matrix):
+    pcd = o3d.io.read_point_cloud(pc_f)
+    if not pcd.has_points():
+        raise ValueError(f"The point cloud at {pc_f} has no points.")
+    
+    print(f"Loaded point cloud with {len(pcd.points)} points.")
+
+    # Check if point cloud has colors
+    has_colors = pcd.has_colors()
+    if has_colors:
+        print("Point cloud has color information.")
+    else:
+        print("Point cloud does NOT have color information.")
+
+    # Convert point cloud to numpy array for processing
+    points = np.asarray(pcd.points)
+    points_normalized = points @ transformation_matrix[:3, :3].T + transformation_matrix[:3, 3]
+    pcd.points = o3d.utility.Vector3dVector(points_normalized)
+
+    # If colors exist, ensure they are preserved
+    if has_colors:
+        colors = np.asarray(pcd.colors)
+        # Normalize colors if they are in [0, 255]
+        if colors.max() > 1.0:
+            colors = colors / 255.0
+            print("Normalized color values to [0, 1].")
+        pcd.colors = o3d.utility.Vector3dVector(colors)
+        print("Preserved color information in the transformed point cloud.")    
+
+    success = o3d.io.write_point_cloud(pc_normalized_f, pcd, write_ascii=True)
+    if success:
+        print(f"Transformed point cloud saved to {pc_normalized_f}")
+    else:
+        raise IOError(f"Failed to save the transformed point cloud to {pc_normalized_f}")    
+
 def get_revert_tvec(tvec, quat_xyzw):
     from scipy.spatial.transform import Rotation as R
     rotation = R.from_quat(quat_xyzw)
@@ -217,4 +253,39 @@ def get_revert_tvec(tvec, quat_xyzw):
     inverse_rot_matrix = rot_matrix.T
     reverse_tvec = -inverse_rot_matrix @ tvec
     return reverse_tvec
-    
+
+def transform_points(pts_c1: np.ndarray, c1Toc2_all: np.ndarray) -> np.ndarray:
+    """
+    Transforms 3D points from coordinates1 to coordinates2.
+
+    Parameters:
+        pts_w (np.ndarray): Points in  coordinates1 with shape (batch_size, num_points, 3).
+        w2o_all (np.ndarray): Transformation matrices from world to camera coordinates with shape (batch_size, 4, 4).
+
+    Returns:
+        np.ndarray: Transformed points in camera coordinates2 with shape (batch_size, num_points, 3).
+    """
+    # Convert to homogeneous coordinates
+    ones = np.ones((pts_c1.shape[0], pts_c1.shape[1], 1), dtype=pts_c1.dtype)
+    pts_w_homo = np.concatenate([pts_c1, ones], axis=2)  # Shape: (batch_size, num_points, 4)
+
+    # Expand dimensions for matrix multiplication
+    pts_w_homo_expanded = pts_w_homo[..., np.newaxis]  # Shape: (batch_size, num_points, 4, 1)
+
+    # Perform batch matrix multiplication
+    pts_c2_homo = np.matmul(c1Toc2_all[:, np.newaxis, :, :], pts_w_homo_expanded)  # Shape: (batch_size, num_points, 4, 1)
+
+    # Squeeze the last dimension and extract Cartesian coordinates
+    pts_c2 = pts_c2_homo.squeeze(-1)[..., :3]  # Shape: (batch_size, num_points, 3)
+
+    return pts_c2
+
+def save_mesh(vertices, faces, out_f):
+    if torch.is_tensor(vertices):
+        vertices = vertices.detach().cpu().numpy()
+    if torch.is_tensor(faces):
+        faces = faces.detach().cpu().numpy()
+
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces)    
+
+    mesh.export(out_f)

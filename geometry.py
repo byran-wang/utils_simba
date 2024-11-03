@@ -5,6 +5,7 @@ from plyfile import PlyData, PlyElement
 import trimesh
 from PIL import Image
 import open3d as o3d
+import os
 
 def fast_depthmap_to_pts3d(depth, pixel_grid, focal, pp):
     """
@@ -183,7 +184,19 @@ def read_point_cloud_from_ply(filepath):
     return positions, colors    
 
 # Function to read PLY file and extract point clouds
-def read_point_cloud_from_obj(obj_file, texture_file):
+def read_point_cloud_from_obj(obj_file, texture_file=None):
+    """
+    Transforms an OBJ mesh to a point cloud with colors.
+
+    Parameters:
+        obj_file (str): Path to the OBJ file.
+        texture_file (str, optional): Path to the texture image. If None, assigns default colors.
+
+    Returns:
+        tuple: (positions, colors)
+            - positions (np.ndarray): Vertex positions with shape (N, 3).
+            - colors (np.ndarray): Vertex colors with shape (N, 3).
+    """
     # Step 1: Load the OBJ model using trimesh
     mesh = trimesh.load(obj_file, force='mesh')
 
@@ -191,25 +204,33 @@ def read_point_cloud_from_obj(obj_file, texture_file):
     positions = mesh.vertices            # numpy array of shape (n_vertices, 3)
     faces = mesh.faces                   # numpy array of shape (n_faces, 3)
 
-    # Step 3: Load the texture image using PIL
-    texture = Image.open(texture_file).convert('RGB')  # Ensure it's in RGB format
-    texture_data = np.asarray(texture)    # Convert image to numpy array
-    texture_height, texture_width = texture.size
+    if texture_file is not None and os.path.exists(texture_file):
+        # Step 3: Load the texture image using PIL
+        texture = Image.open(texture_file).convert('RGB')  # Ensure it's in RGB format
+        texture_data = np.asarray(texture)    # Convert image to numpy array
+        texture_width, texture_height = texture.size
 
-    # Step 4: Get UV coordinates from the mesh
-    uv_coords = mesh.visual.uv            # numpy array of shape (n_vertices, 2)
+        # Step 4: Get UV coordinates from the mesh
+        if mesh.visual.uv is None:
+            print(f"No UV coordinates found for {obj_file}. Assigning default color.")
+            colors = np.ones((positions.shape[0], 3), dtype=np.float32)  # White color
+        else:
+            uv_coords = mesh.visual.uv            # numpy array of shape (n_vertices, 2)
 
-    # Ensure UV coordinates are within [0, 1]
-    uv_coords = np.clip(uv_coords, 0, 1)
+            # Ensure UV coordinates are within [0, 1]
+            uv_coords = np.clip(uv_coords, 0, 1)
 
-    # Step 5: Map UV coordinates to texture pixel indices
-    u_indices = (uv_coords[:, 0] * (texture_width - 1)).astype(np.int32)
-    v_indices = ((1 - uv_coords[:, 1]) * (texture_height - 1)).astype(np.int32)  # Invert V-axis
+            # Step 5: Map UV coordinates to texture pixel indices
+            u_indices = (uv_coords[:, 0] * (texture_width - 1)).astype(np.int32)
+            v_indices = ((1 - uv_coords[:, 1]) * (texture_height - 1)).astype(np.int32)  # Invert V-axis
 
-    # Step 6: Get colors from the texture image
-    colors = texture_data[v_indices, u_indices] / 255.0  # Normalize RGB values to [0, 1]
+            # Step 6: Get colors from the texture image
+            colors = texture_data[v_indices, u_indices] / 255.0  # Normalize RGB values to [0, 1]
+    else:
+        # Assign default color, e.g., white
+        colors = np.ones((positions.shape[0], 3), dtype=np.float32)
 
-    return positions, colors    
+    return positions, colors
 
 def convert_point_cloud(pc_f, pc_normalized_f, transformation_matrix):
     pcd = o3d.io.read_point_cloud(pc_f)
@@ -254,29 +275,56 @@ def get_revert_tvec(tvec, quat_xyzw):
     reverse_tvec = -inverse_rot_matrix @ tvec
     return reverse_tvec
 
-def transform_points(pts_c1: np.ndarray, c1Toc2_all: np.ndarray) -> np.ndarray:
+def transform_points(pts_c1, c1Toc2_all):
     """
-    Transforms 3D points from coordinates1 to coordinates2.
+    Transforms 3D points from coordinate system 1 to coordinate system 2.
 
     Parameters:
-        pts_w (np.ndarray): Points in  coordinates1 with shape (batch_size, num_points, 3).
-        w2o_all (np.ndarray): Transformation matrices from world to camera coordinates with shape (batch_size, 4, 4).
+        pts_c1 (np.ndarray or torch.Tensor): Points in coordinate system 1 with shape (batch_size, num_points, 3).
+        c1Toc2_all (np.ndarray or torch.Tensor): Transformation matrices from coordinate system 1 to coordinate system 2 with shape (batch_size, 4, 4).
 
     Returns:
-        np.ndarray: Transformed points in camera coordinates2 with shape (batch_size, num_points, 3).
+        np.ndarray or torch.Tensor: Transformed points in coordinate system 2 with shape (batch_size, num_points, 3).
+                                   The type matches the input type.
     """
+    # Determine the module and functions to use based on the input type
+    if isinstance(pts_c1, torch.Tensor):
+        module = torch
+        cat_func = torch.cat
+        expand_dims = torch.unsqueeze
+        squeeze = torch.squeeze
+        newaxis = None
+        device = pts_c1.device
+        ones_kwargs = {'device': device}
+    elif isinstance(pts_c1, np.ndarray):
+        module = np
+        cat_func = np.concatenate
+        expand_dims = np.expand_dims
+        squeeze = np.squeeze
+        newaxis = np.newaxis
+        ones_kwargs = {}
+    else:
+        raise TypeError("Input must be either a numpy array or a torch tensor.")
+
     # Convert to homogeneous coordinates
-    ones = np.ones((pts_c1.shape[0], pts_c1.shape[1], 1), dtype=pts_c1.dtype)
-    pts_w_homo = np.concatenate([pts_c1, ones], axis=2)  # Shape: (batch_size, num_points, 4)
+    ones_shape = list(pts_c1.shape[:-1]) + [1]  # Shape: (batch_size, num_points, 1)
+    ones = module.ones(ones_shape, dtype=pts_c1.dtype, **ones_kwargs)
+    pts_c1_homo = cat_func([pts_c1, ones], axis=-1)  # Shape: (batch_size, num_points, 4)
 
     # Expand dimensions for matrix multiplication
-    pts_w_homo_expanded = pts_w_homo[..., np.newaxis]  # Shape: (batch_size, num_points, 4, 1)
+    pts_c1_homo_expanded = expand_dims(pts_c1_homo, axis=-1)  # Shape: (batch_size, num_points, 4, 1)
+
+    # Expand transformation matrices for batch matrix multiplication
+    if module == np:
+        c1Toc2_expanded = c1Toc2_all[:, np.newaxis, :, :]  # Shape: (batch_size, 1, 4, 4)
+    else:
+        c1Toc2_expanded = c1Toc2_all.unsqueeze(1)  # Shape: (batch_size, 1, 4, 4)
 
     # Perform batch matrix multiplication
-    pts_c2_homo = np.matmul(c1Toc2_all[:, np.newaxis, :, :], pts_w_homo_expanded)  # Shape: (batch_size, num_points, 4, 1)
+    pts_c2_homo = module.matmul(c1Toc2_expanded, pts_c1_homo_expanded)  # Shape: (batch_size, num_points, 4, 1)
 
     # Squeeze the last dimension and extract Cartesian coordinates
-    pts_c2 = pts_c2_homo.squeeze(-1)[..., :3]  # Shape: (batch_size, num_points, 3)
+    pts_c2 = squeeze(pts_c2_homo, axis=-1)[..., :3]  # Shape: (batch_size, num_points, 3)
 
     return pts_c2
 
@@ -289,3 +337,32 @@ def save_mesh(vertices, faces, out_f):
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces)    
 
     mesh.export(out_f)
+    print(f"save mesh in {out_f}")
+
+def save_point_cloud(x_c, filename, colors=None):
+    """
+    Saves a point cloud to a PLY file using trimesh.
+
+    Parameters:
+        x_c (np.ndarray): Point cloud data with shape (N, 3).
+        filename (str): Output PLY file path.
+        colors (optional, np.ndarray): Color data with shape (N, 3), values in [0, 255].
+    """
+    if not isinstance(x_c, np.ndarray):
+        raise TypeError("x_c must be a NumPy array.")
+    if x_c.shape[1] != 3:
+        raise ValueError("x_c must have shape (N, 3).")
+    if colors is not None:
+        if not isinstance(colors, np.ndarray):
+            raise TypeError("colors must be a NumPy array.")
+        if colors.shape[1] != 3:
+            raise ValueError("colors must have shape (N, 3).")
+        if colors.shape[0] != x_c.shape[0]:
+            raise ValueError("colors and x_c must have the same number of points.")
+    
+    # Create trimesh PointCloud object
+    cloud = trimesh.points.PointCloud(vertices=x_c, colors=colors)
+    
+    # Export to PLY
+    cloud.export(filename)
+    print(f"Point cloud saved to {filename}")    

@@ -255,7 +255,7 @@ def ReadHO3DFoundationPose(config):
     cam_infos = []
     rgb_all = sorted(glob(f"{config['rgb_path']}/*.png"))
     camera_all = sorted(glob(f"{config['camera_path']}/*.json"))
-    mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
+    # mask_all = sorted(glob(f"{config['mask_path']}/*.png"))
     rgba_all = sorted(glob(f"{config['rgba_path']}/*.png"))
 
     K = None
@@ -272,9 +272,9 @@ def ReadHO3DFoundationPose(config):
         if not (rgba_f in rgba_all):
             print(f"Error: {rgba_f} not found")
             assert False
-        if not (mask_f in mask_all):
-            print(f"Error: {mask_f} not found")
-            assert False
+        # if not (mask_f in mask_all):
+        #     print(f"Error: {mask_f} not found")
+        #     assert False
         camera = json.load(open(camera_f, 'r'))
         # K = camera['K_inpaint']
         K = camera['K']

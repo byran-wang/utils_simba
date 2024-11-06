@@ -490,22 +490,82 @@ def log_point_cloud(PC_path_list, log_path_prefix="world/", radii=0.003):
         )
 
 def log_obj_model(obj_path_list, log_path_prefix="world/", radii=0.003):
+    """
+    Logs multiple OBJ models by transforming their point clouds and logging them.
+
+    Parameters:
+        obj_path_list (list of str): List of paths to OBJ files.
+        log_path_prefix (str): Prefix for logging paths.
+        radii (float): Radius for point cloud visualization.
+    """
     for obj_file in obj_path_list:
         if not os.path.exists(obj_file):
-            print(f"PC_path {obj_file} does not exist")
-            continue        
-        obj_file_dir = '/'.join(obj_file.split('/')[:-1])
-        texture_file = obj_file_dir + '/' + "texture_kd.jpg"
-        obj_pos, obj_color = read_point_cloud_from_obj(obj_file, texture_file)
-        obj_name = obj_file.split("/")[-1]
-        obj_name_prefix = obj_file.split("/")[3]
+            print(f"OBJ file {obj_file} does not exist.")
+            continue
+        
+        obj_file_dir = os.path.dirname(obj_file)
+        texture_file = os.path.join(obj_file_dir, "texture_kd.jpg")
+        
+        if os.path.exists(texture_file):
+            obj_pos, obj_color = read_point_cloud_from_obj(obj_file, texture_file)
+        else:
+            print(f"No texture file found for {obj_file}. Assigning default color.")
+            obj_pos, obj_color = read_point_cloud_from_obj(obj_file, texture_file=None)
+        
+        obj_name = os.path.basename(obj_file)
+        obj_name_prefix = os.path.basename(obj_file_dir)
         obj_name = f"obj_{obj_name_prefix}_{obj_name}"
+        
         rr.log(
             f"{log_path_prefix}{obj_name}",
             rr.Points3D(obj_pos, colors=obj_color, radii=radii),
             timeless=True
         )
 
+def generate_points_spherical_coordinates(r, N):
+    """
+    Generates N uniformly distributed points on the surface of a sphere with radius r using spherical coordinates.
+
+    Parameters:
+        r (float): Radius of the sphere.
+        N (int): Number of points to generate.
+
+    Returns:
+        np.ndarray: Array of shape (N, 3) containing the 3D coordinates of the points.
+    """
+    # Step 1: Sample theta uniformly from [0, 2*pi)
+    theta = np.random.uniform(0, 2 * np.pi, N)
+
+    # Step 2: Sample cos(phi) uniformly from [-1, 1] and compute phi
+    cos_phi = np.random.uniform(-1, 1, N)
+    phi = np.arccos(cos_phi)
+
+    # Step 3: Convert spherical coordinates to Cartesian coordinates
+    x = r * np.sin(phi) * np.cos(theta)
+    y = r * np.sin(phi) * np.sin(theta)
+    z = r * cos_phi  # z = r * cos(phi)
+
+    # Stack into (N, 3) array
+    points = np.vstack((x, y, z)).T
+
+    return points
+
+def log_sphere(radius, num_points=1000, log_path_prefix="world/", radii=0.003):
+    """
+    Logs a sphere with a given radius and number of points.
+
+    Parameters:
+        radius (float): Radius of the sphere.
+        num_points (int): Number of points to generate on the sphere.
+        log_path_prefix (str): Prefix for logging paths.
+        radii (float): Radius for point cloud visualization.
+    """
+    points = generate_points_spherical_coordinates(radius, num_points)
+    rr.log(
+        f"{log_path_prefix}/sphere",
+        rr.Points3D(points, radii=radii),
+        timeless=True
+    )
 
 def log_asset_axis(log_path_prefix="world/", scale=1.0):
     origins = np.zeros((3, 3))

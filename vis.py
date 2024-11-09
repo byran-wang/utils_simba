@@ -472,7 +472,8 @@ def log_asset_3D(asset_3D_paths):
                 vertex_normals=mesh_info["vertex_normals"],
                 vertex_colors=mesh_info["vertex_colors"],
                 triangle_indices=mesh_info["triangle_indices"],
-            ),           
+            ),
+            timeless=True,           
         )  
 
 def log_point_cloud(PC_path_list, log_path_prefix="world/", radii=0.003):

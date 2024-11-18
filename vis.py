@@ -594,12 +594,11 @@ def show_cameras_images(scene_data, pre_fix, intrinsic_sel=0):
 
         tf = rr.Transform3D(translation=translation, rotation=quaternion, from_parent=False)
         rr.log(f"world/{pre_fix}image/{pre_fix}{image_index}", tf)
-
         rr.log(
             f"world/{pre_fix}image/{pre_fix}{image_index}",
             rr.Pinhole(
                 resolution=[width, height],
-                focal_length=np.array([focal_length, focal_length]).reshape(-1),
+                focal_length=np.array([focal_length[0], focal_length[0]]).reshape(-1),
                 principal_point=np.array([cx, cy]).reshape(-1),
             ),
         )

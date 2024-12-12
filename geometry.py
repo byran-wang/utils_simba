@@ -366,3 +366,30 @@ def save_point_cloud(x_c, filename, colors=None):
     # Export to PLY
     cloud.export(filename)
     print(f"Point cloud saved to {filename}")    
+
+def get_incident_angle(normal, light_dir):
+    """
+    Computes the incident angle between the surface normal and the light direction.
+
+    Parameters:
+        normal (np.ndarray): Surface normal with shape (3,).
+        light_dir (np.ndarray): Light direction with shape (3,).
+
+    Returns:
+        float: Incident angle in degrees.
+    """
+    # Normalize the vectors
+    normal = normal / np.linalg.norm(normal)
+    light_dir = light_dir / np.linalg.norm(light_dir)
+
+    # Compute the cosine of the angle
+    cos_theta = np.dot(normal, light_dir)
+
+    # Clamp the value to avoid numerical errors
+    cos_theta = np.clip(cos_theta, -1.0, 1.0)
+
+    # Compute the angle in degrees
+    angle_rad = np.arccos(cos_theta)
+    angle_deg = np.degrees(angle_rad)
+
+    return angle_rad, angle_deg

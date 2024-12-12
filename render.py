@@ -204,3 +204,56 @@ def nvdiffrast_render(K=None, H=None, W=None, ob_in_cams=None, glctx=None, conte
   depth = torch.flip(depth, dims=[1])
   extra['xyz_map'] = torch.flip(xyz_map, dims=[1])
   return color, depth, normal_map
+
+def get_ray_origin_direction(c2w: torch.Tensor, K: torch.Tensor, pixel_coords: torch.Tensor):
+    """
+    Compute ray origins and directions in world coordinates for given pixel coordinates.
+
+    Args:
+        c2w (torch.Tensor): Camera-to-World transformation matrix of shape [4, 4].
+        K (torch.Tensor): Camera intrinsic matrix of shape [3, 3].
+        pixel_coords (torch.Tensor): Pixel coordinates of shape [N, 2], where each row is (u, v).
+
+    Returns:
+        ray_origins (torch.Tensor): Ray origins in world coordinates of shape [N, 3].
+        ray_directions (torch.Tensor): Normalized ray directions in world coordinates of shape [N, 3].
+    """
+    # Ensure inputs are of correct shapes
+    assert c2w.shape == (4, 4), "c2w must be a [4, 4] matrix."
+    assert K.shape == (3, 3), "K must be a [3, 3] matrix."
+    assert pixel_coords.shape[1] == 2, "pixel_coords must have shape [N, 2]."
+
+    # Extract intrinsic parameters
+    fx = K[0, 0]
+    fy = K[1, 1]
+    cx = K[0, 2]
+    cy = K[1, 2]
+
+    # Convert pixel coordinates to camera space
+    u = pixel_coords[:, 0]
+    v = pixel_coords[:, 1]
+
+    # Compute directions in camera space
+    x_cam = (u - cx) / fx
+    y_cam = (v - cy) / fy
+    z_cam = torch.ones_like(x_cam)
+
+    directions_cam = torch.stack([x_cam, y_cam, z_cam], dim=1)  # Shape: [N, 3]
+
+    # Normalize directions in camera space
+    directions_cam_norm = torch.nn.functional.normalize(directions_cam, dim=1)  # Shape: [N, 3]
+
+    # Extract rotation (R) and translation (t) from c2w
+    R = c2w[:3, :3]  # Shape: [3, 3]
+    t = c2w[:3, 3]   # Shape: [3]
+
+    # Rotate directions to world space
+    directions_world = torch.matmul(directions_cam_norm, R.T)  # Shape: [N, 3]
+
+    # Normalize directions in world space
+    directions_world_norm = torch.nn.functional.normalize(directions_world, dim=1)  # Shape: [N, 3]
+
+    # Ray origin is the camera position in world space, replicated for each ray
+    ray_origins = t.unsqueeze(0).expand_as(directions_world_norm)  # Shape: [N, 3]
+
+    return ray_origins, directions_world_norm

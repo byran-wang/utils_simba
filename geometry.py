@@ -141,7 +141,7 @@ def depth_to_pts3d(focals, principal_points, c2w4x4, depth):
 
 def save_point_cloud_to_ply(pts_3d, filepath, colors=None):
     # Create a structured array for the points
-
+    
 
     if colors is not None:
         colors = colors.astype(np.uint8)
@@ -328,6 +328,122 @@ def transform_points(pts_c1, c1Toc2_all):
 
     return pts_c2
 
+def project_points(pts_c, intrinsic):
+    """
+    Projects 3D points to 2D image coordinates using camera intrinsics.
+
+    Parameters:
+        pts_c (np.ndarray or torch.Tensor): 3D points in camera coordinates with shape (batch_size, N, 3)
+        intrinsic (np.ndarray or torch.Tensor): Camera intrinsic matrix with shape (batch_size, 3, 3)
+
+    Returns:
+        np.ndarray or torch.Tensor: Projected 2D points in image coordinates with shape (batch_size, N, 3).
+                                   The first two columns are x, y pixel coordinates,
+                                   the third column contains the depth values.
+    """
+
+    # Check if pts_c and intrinsic are numpy arrays or torch tensors
+    if isinstance(pts_c, np.ndarray):
+        matmul_fn = np.matmul
+        is_numpy = True
+    elif isinstance(pts_c, torch.Tensor):
+        matmul_fn = torch.matmul
+        is_numpy = False
+    else:
+        raise TypeError("pts_c should be either a numpy array or a torch tensor.")
+
+    # Project the 3D points (multiplying with the intrinsic matrix)
+    pts_2d = matmul_fn(intrinsic, pts_c.transpose(0, 2, 1))  # (batch_size, 3, N)
+
+    # Divide by depth (the third row of the resulting matrix corresponds to the z coordinate)
+    pts_2d /= pts_2d[:, 2:3, :]  # Broadcasting to divide by the depth
+
+    # Reorganize to have the shape (batch_size, N, 3), where the last column is depth
+    projected_points = np.concatenate([pts_2d[:, :2, :].transpose(0, 2, 1), pts_c[:, :, 2:3]], axis=-1) if is_numpy else torch.cat([pts_2d[:, :2, :].transpose(1, 2), pts_c[:, :, 2:3]], dim=-1)
+
+    return projected_points
+
+
+def rodrigues_to_rotation_matrix(rvec):
+    """
+    Convert Rodrigues vector (angle-axis) to a 3x3 rotation matrix.
+    """
+    theta = np.linalg.norm(rvec)
+    if theta < 1e-12:
+        # No rotation
+        return np.eye(3)
+    
+    k = rvec / theta
+    K = np.array([[    0, -k[2],  k[1]],
+                  [ k[2],     0, -k[0]],
+                  [-k[1],  k[0],    0]], dtype=float)
+    R = np.eye(3) + np.sin(theta)*K + (1-np.cos(theta))*(K @ K)
+    return R
+
+def rotation_matrix_to_rodrigues(R):
+    """
+    Convert a 3x3 rotation matrix to a Rodrigues (angle-axis) vector (3,).
+    """
+    # Ensure R is 3x3
+    R = R[:3, :3]
+
+    # Compute the angle from the trace
+    # Numerical safety for trace precision
+    eps = 1e-12
+    trace_val = np.trace(R)
+    # Clip the value in case of slight numerical overshoot
+    trace_val = max(min(trace_val, 3.0), -1.0)
+    
+    theta = np.arccos((trace_val - 1.0) / 2.0)
+
+    # If theta is very close to 0 => no rotation
+    if abs(theta) < eps:
+        return np.zeros(3)
+
+    # If theta is close to pi or for certain numeric cases, the standard formula
+    # still works but must be handled carefully with numerical issues.
+
+    # Compute axis
+    rx = (R[2, 1] - R[1, 2]) / (2.0 * np.sin(theta))
+    ry = (R[0, 2] - R[2, 0]) / (2.0 * np.sin(theta))
+    rz = (R[1, 0] - R[0, 1]) / (2.0 * np.sin(theta))
+    r_axis = np.array([rx, ry, rz], dtype=float)
+
+    # Construct Rodrigues vector = angle * unit_axis
+    rvec = theta * r_axis
+    return rvec
+
+def transform4x4_to_rodrigues_and_translation(T):
+    """
+    Given a 4x4 homogeneous transformation matrix, 
+    return:
+      - rvec: 3D Rodrigues rotation vector
+      - tvec: 3D translation vector
+    """
+    # Extract rotation (3x3) and translation (3x1)
+    R = T[:3, :3]
+    t = T[:3, 3]
+
+    # Convert rotation matrix to Rodrigues vector
+    rvec = rotation_matrix_to_rodrigues(R)
+
+    return rvec, t
+
+def rodrigues_and_translation_to_transform4x4(rvec, tvec):
+    """
+    Convert Rodrigues vector and translation vector to a 4x4 transformation matrix.
+    Parameters:
+        - rvec: 3D Rodrigues rotation vector
+        - tvec: 3D translation vector
+    Returns:
+        - T: 4x4 transformation matrix
+    """
+    R = rodrigues_to_rotation_matrix(rvec)
+    T = np.eye(4)
+    T[:3, :3] = R
+    T[:3, 3] = tvec
+    return T
+
 def save_mesh(vertices, faces, out_f):
     if torch.is_tensor(vertices):
         vertices = vertices.detach().cpu().numpy()
@@ -362,7 +478,7 @@ def save_point_cloud(x_c, filename, colors=None):
     
     # Create trimesh PointCloud object
     cloud = trimesh.points.PointCloud(vertices=x_c, colors=colors)
-    
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     # Export to PLY
     cloud.export(filename)
     print(f"Point cloud saved to {filename}")    

@@ -509,3 +509,29 @@ def get_incident_angle(normal, light_dir):
     angle_deg = np.degrees(angle_rad)
 
     return angle_rad, angle_deg
+
+def get_intrinsic_matrix_from_projection(P, w, h):
+    '''
+    obtain the intrinsic matrix from the projection matrix
+    args:
+        P: projection matrix (4x4)
+        w: image width
+        h: image height
+    return:
+        K: intrinsic matrix (3x3)
+    '''
+    fx = P[0][0] * w / 2
+    fy = P[1][1] * h / 2
+    cx = (1.0 - P[0][2]) * w / 2
+    cy = (1.0 + P[1][2]) * h / 2
+    
+    K = torch.eye(3, dtype=torch.float32)
+    K[0,0] = fx
+    K[1,1] = fy
+    K[0,2] = cx 
+    K[1,2] = cy
+    
+    return K
+
+
+

@@ -3,25 +3,27 @@ import cv2
 
 def save_depth(depth, fname, scale= 0.00012498664727900177):
     depth_scale = 1 / scale
-    max_depth = 2**16 / (1/ scale)     # max 8.19112491607666 = 2**16 / (1/ 0.00012498664727900177)
+    max_depth = 2**24 / (1/ scale)     # max 8.19112491607666 = 2**16 / (1/ 0.00012498664727900177)
     exceed_depth = depth[depth > max_depth]
     if len(exceed_depth) > 0:
         print(f"Warning: {len(exceed_depth)} depth values exceed the maximum depth of {max_depth}. Clipping to {max_depth}.")
     depth = depth.clip(0, max_depth)
 
-    depth_scaled = (depth * depth_scale).astype(np.uint16)
+    depth_scaled = (depth * depth_scale).astype(np.uint32)
     depth_lsb = np.bitwise_and(depth_scaled, 0xFF)  # Least significant byte
-    depth_msb = np.right_shift(depth_scaled, 8)  # Most significant byte
+    depth_msb = np.bitwise_and(np.right_shift(depth_scaled, 8), 0xFF)  # Most significant byte
+    depth_msb2 = np.bitwise_and(np.right_shift(depth_scaled, 16), 0xFF)  # Most significant byte
     depth_encoded = np.zeros((depth.shape[0], depth.shape[1], 3), dtype=np.uint8)
     depth_encoded[..., 2] = depth_lsb
     depth_encoded[..., 1] = depth_msb
+    depth_encoded[..., 0] = depth_msb2
     cv2.imwrite(fname, depth_encoded)
     print(f"Saved depth to {fname}")
 
 def get_depth(depth_file, zfar=np.inf, depth_scale = 0.00012498664727900177):
     # depth = cv2.imread(self.color_files[i].replace('.jpg','.png').replace('rgb','depth'), -1)
     depth = cv2.imread(depth_file, -1)
-    depth = (depth[...,2]+depth[...,1]*256)*depth_scale
+    depth = (depth[...,2]+depth[...,1]*256+depth[...,0]*256*256)*depth_scale
     depth[(depth<0.1) | (depth>=zfar)] = 0
     return depth
 

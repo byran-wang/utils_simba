@@ -523,6 +523,7 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
             _, binary_mask = cv2.threshold(mask_image, 128, 255, cv2.THRESH_BINARY)
             binary_mask = binary_mask[:, :, np.newaxis]
             binary_mask = binary_mask[:inpaint_image.shape[0],...]
+            binary_mask = binary_mask[:inpaint_image.shape[0],:inpaint_image.shape[1],:]
             masked_inpaint = inpaint_image * (binary_mask // 255) + 255 * (1 - binary_mask// 255)
 
             masked_ip_f = os.path.join(out_dir, f"{image_name}.png")

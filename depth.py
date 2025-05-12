@@ -23,8 +23,8 @@ def save_depth(depth, fname, scale= 0.00012498664727900177):
 def get_depth(depth_file, zfar=np.inf, depth_scale = 0.00012498664727900177):
     # depth = cv2.imread(self.color_files[i].replace('.jpg','.png').replace('rgb','depth'), -1)
     depth = cv2.imread(depth_file, -1)
-    depth = (depth[...,2]+depth[...,1]*256+depth[...,0]*256*256)*depth_scale
-    depth[(depth<0.1) | (depth>=zfar)] = 0
+    depth = (depth[...,0]*256.0*256.0 + depth[...,1]*256.0 + depth[...,2])*depth_scale
+    depth[(depth<0.01) | (depth>=zfar)] = 0
     return depth
 
 def depth2xyzmap(depth, K, uvs=None):

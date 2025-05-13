@@ -436,8 +436,13 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
         max_value = 0
         hand_bbox_f = Path(config.image_dir) / "../boxes.npy"
         hand_bboxes = np.load(hand_bbox_f)
+        valid_index = -1
         for i, ref_view in enumerate(config.ref_views):
             image_f = Path(config.image_dir) / f"{ref_view:04d}.png"
+            # check image_f exists
+            if not image_f.exists():
+                continue
+            valid_index += 1
             mask_f = image_f.parent.parent / "masks" / f"{ref_view:04d}.png"
             mask = cv2.imread(str(mask_f), cv2.IMREAD_UNCHANGED)
             SEGM_IDS = {"bg": 0, "object": 50, "right": 150, "left": 250}
@@ -446,7 +451,7 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
             if config.inpaint_select_strategy == "object_hand_ratio":
                 # object_hand_ratio = object_pixels / (hand_pixels in the bbox range)
                 # hand_bboxes is a list of bboxes, each bbox is a tuple (x1, y1, x2, y2)
-                hand_bbox = hand_bboxes[i].copy()
+                hand_bbox = hand_bboxes[valid_index].copy()
                 # clip the bbox x1, x2 to image width, y1, y2 to image height
                 mask_height, mask_width = mask.shape[:2]
                 hand_bbox[0] = np.clip(hand_bbox[0], 0, mask_width - 1)

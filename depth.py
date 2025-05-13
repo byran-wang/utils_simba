@@ -27,6 +27,39 @@ def get_depth(depth_file, zfar=np.inf, depth_scale = 0.00012498664727900177):
     depth[(depth<0.01) | (depth>=zfar)] = 0
     return depth
 
+import numba
+
+import torch
+
+def depth2xyzmap_cuda(depth, K, uvs=None):
+    H, W = depth.shape[-2:]  # assume (H, W) or (1, H, W)
+    fx, fy = K[0, 0], K[1, 1]
+    cx, cy = K[0, 2], K[1, 2]
+
+    device = depth.device
+    if uvs is None:
+        us, vs = torch.meshgrid(
+            torch.arange(W, device=device),
+            torch.arange(H, device=device),
+            indexing='xy'
+        )
+        us = us.flatten()
+        vs = vs.flatten()
+    else:
+        uvs = uvs.round().long()
+        us = uvs[:, 0]
+        vs = uvs[:, 1]
+
+    zs = depth[vs, us]
+    valid = zs >= 0.01
+    xs = (us[valid].float() - cx) * zs[valid] / fx
+    ys = (vs[valid].float() - cy) * zs[valid] / fy
+    pts = torch.stack((xs, ys, zs[valid]), dim=1)
+
+    xyz_map = torch.zeros((H, W, 3), dtype=torch.float32, device=device)
+    xyz_map[vs[valid], us[valid]] = pts
+    return xyz_map
+
 def depth2xyzmap(depth, K, uvs=None):
     invalid_mask = (depth<0.01)
     H,W = depth.shape[:2]

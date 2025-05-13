@@ -420,11 +420,22 @@ def ReadHO3DGTPose(config):
         
     return cam_infos
 
+def show_mask_and_bbox(mask, bbox):
+    # input mask is a numpy array
+    # input bbox is a tuple (x1, y1, x2, y2)
+    import matplotlib.pyplot as plt
+    plt.imshow(mask)
+    # plot the bbox as rectangle
+    plt.gca().add_patch(plt.Rectangle((bbox[0], bbox[1]), bbox[2] - bbox[0], bbox[3] - bbox[1], fill=False, color="red", linewidth=2))
+    plt.show()
+
 def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, write_pose=True):
     if config.inpaint_select_strategy == "manual":
         inpaint_f = Path(config.image_dir) / f"{config.cond_view:04d}.png"
     else:
         max_value = 0
+        hand_bbox_f = Path(config.image_dir) / "../boxes.npy"
+        hand_bboxes = np.load(hand_bbox_f)
         for i, ref_view in enumerate(config.ref_views):
             image_f = Path(config.image_dir) / f"{ref_view:04d}.png"
             mask_f = image_f.parent.parent / "masks" / f"{ref_view:04d}.png"
@@ -433,7 +444,20 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
             object_pixels = (mask == SEGM_IDS["object"]).sum()
             hand_pixels = (mask == SEGM_IDS["right"]).sum()
             if config.inpaint_select_strategy == "object_hand_ratio":
-                object_hand_ratio = object_pixels / hand_pixels
+                # object_hand_ratio = object_pixels / (hand_pixels in the bbox range)
+                # hand_bboxes is a list of bboxes, each bbox is a tuple (x1, y1, x2, y2)
+                hand_bbox = hand_bboxes[i].copy()
+                # clip the bbox x1, x2 to image width, y1, y2 to image height
+                mask_height, mask_width = mask.shape[:2]
+                hand_bbox[0] = np.clip(hand_bbox[0], 0, mask_width - 1)
+                hand_bbox[2] = np.clip(hand_bbox[2], 0, mask_width - 1)
+                hand_bbox[1] = np.clip(hand_bbox[1], 0, mask_height - 1)
+                hand_bbox[3] = np.clip(hand_bbox[3], 0, mask_height - 1)
+                hand_bbox = hand_bbox.astype(np.int32)
+                hand_pixels_in_bbox = (mask[hand_bbox[1]:hand_bbox[3], hand_bbox[0]:hand_bbox[2]] == SEGM_IDS["right"]).sum()
+                # show the mask and the bbox by plotting
+                # show_mask_and_bbox(mask, hand_bbox)
+                object_hand_ratio = object_pixels / hand_pixels_in_bbox
                 if object_hand_ratio > max_value:
                     max_value = object_hand_ratio
                     inpaint_f = image_f
@@ -445,6 +469,11 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
                 # assert and print error message
                 assert False, "Unknown inpaint_select_strategy"
     print(f"Selected inpaint view: {inpaint_f}")
+    # save the inpaint file index to config.inpaint_select_strategy.txt
+    inpaint_f_index = os.path.basename(inpaint_f).split(".")[0].split("_rgba")[0]
+    inpaint_f_index_f = f"{config.out_dir}/{config.inpaint_select_strategy}_selected.txt"
+    with open(inpaint_f_index_f, "w") as f:
+        f.write(f"{inpaint_f_index}")
 
     InpaintAny_dir = "/home/simba/Documents/project/Inpaint-Anything"
     InpaintAny_py = "/home/simba/anaconda3/envs/chatcap/bin/python"

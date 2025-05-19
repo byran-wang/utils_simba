@@ -477,6 +477,7 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
     # save the inpaint file index to config.inpaint_select_strategy.txt
     inpaint_f_index = os.path.basename(inpaint_f).split(".")[0].split("_rgba")[0]
     inpaint_f_index_f = f"{config.out_dir}/{config.inpaint_select_strategy}_selected.txt"
+    os.makedirs(os.path.dirname(inpaint_f_index_f), exist_ok=True)
     with open(inpaint_f_index_f, "w") as f:
         f.write(f"{inpaint_f_index}")
 
@@ -561,10 +562,10 @@ def inpaint_input_views(config, do_inpaint=True, do_mask=True, do_center=True, w
             masked_inpaint = inpaint_image * (binary_mask // 255) + 255 * (1 - binary_mask// 255)
 
             masked_ip_f = os.path.join(out_dir, f"{image_name}.png")
-            cv2.imwrite(masked_ip_f, masked_inpaint)
+            cv2.imwrite(masked_ip_f, inpaint_image)
 
             alpha_channel = binary_mask
-            rgba_image = cv2.merge((masked_inpaint[:, :, 0], masked_inpaint[:, :, 1], masked_inpaint[:, :, 2], alpha_channel))
+            rgba_image = cv2.merge((inpaint_image[:, :, 0], inpaint_image[:, :, 1], inpaint_image[:, :, 2], alpha_channel))
             cv2.imwrite(masked_ip_rgba_f, rgba_image)
        
         if do_center:

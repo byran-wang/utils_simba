@@ -4,7 +4,7 @@ __version__ = "0.1.0"
 
 # Import commonly used modules for easier access
 from . import camera
-from . import config
+# from . import config
 from . import data_read
 from . import depth
 from . import geometry
@@ -13,7 +13,7 @@ from . import hand
 from . import img
 from . import logger
 from . import mesh
-from . import misc
+# from . import misc
 from . import nn_tool
 from . import pose
 from . import render

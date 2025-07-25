@@ -18,7 +18,7 @@ def save_depth(depth, fname, scale= 0.00012498664727900177):
     depth_encoded[..., 1] = depth_msb
     depth_encoded[..., 0] = depth_msb2
     cv2.imwrite(fname, depth_encoded)
-    print(f"Saved depth to {fname}")
+    # print(f"Saved depth to {fname}")
 
 def get_depth(depth_file, zfar=np.inf, depth_scale = 0.00012498664727900177):
     # depth = cv2.imread(self.color_files[i].replace('.jpg','.png').replace('rgb','depth'), -1)

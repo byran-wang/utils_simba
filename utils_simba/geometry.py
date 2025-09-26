@@ -26,7 +26,12 @@ def fast_depthmap_to_pts3d(depth, pixel_grid, focal, pp):
     assert pp.shape == (len(depth), 1, 2)
     assert pixel_grid.shape == depth.shape + (2,)
     depth = depth.unsqueeze(-1)
-    return torch.cat((depth * (pixel_grid - pp) / focal, depth), dim=-1)
+
+    pts3d = torch.cat((depth * (pixel_grid - pp) / focal, depth), dim=-1)
+    mask = depth > 0
+    valid_pts3d = pts3d[mask.expand_as(pts3d)].view(pts3d.shape[0], -1, 3)
+
+    return valid_pts3d
 
 def xy_grid(W, H, device=None, origin=(0, 0), unsqueeze=None, cat_dim=-1, homogeneous=False, **arange_kw):
     """ Output a (H,W,2) array of int32 
@@ -141,7 +146,9 @@ def depth_to_pts3d(focals, principal_points, c2w4x4, depth):
 
 def save_point_cloud_to_ply(pts_3d, filepath, colors=None):
     # Create a structured array for the points
-    
+    # check if pts_3d is a numpy array
+    if isinstance(pts_3d, torch.Tensor):
+        pts_3d = pts_3d.cpu().numpy()
 
     if colors is not None:
         colors = colors.astype(np.uint8)

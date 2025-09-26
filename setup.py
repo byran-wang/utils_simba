@@ -11,9 +11,12 @@ setup(
     install_requires=[
         "numpy",
         "pillow",
-        "opencv-python",
+        "opencv-python==4.8.0.74",
         "omegaconf",
         "rich",
+        "rerun",
+        "smplx",
+        "trimesh",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -1,5 +1,10 @@
 import rerun as rr
 import numpy as np
+import os
+import cv2
+import trimesh
+import rerun.blueprint as rrb
+from .vis import rotation_matrix_to_quaternion
 
 def add_material(color: list) -> rr.Material:
     """
@@ -40,3 +45,108 @@ def compute_vertex_normals(vertices, faces):
     normals /= norm[:, np.newaxis]
     
     return normals
+
+class Visualizer:
+    def __init__(
+        self,
+        jpeg_quality: int = 75,
+        world_coordinate: str = "object",   
+    ) -> None:
+        # To be parametrized later
+        self._jpeg_quality = jpeg_quality
+        #
+        # Prepare the rerun rerun log configuration
+        #
+        blueprint = rrb.Vertical(
+            rrb.Spatial3DView(name="object", 
+                            defaults=[rr.components.ImagePlaneDistance(1.0)],
+                            origin="/"),                         
+            rrb.Horizontal(
+                rrb.Spatial2DView(name="camera", origin="/camera"),
+            ),
+            row_shares=[5, 2],
+        )
+        viewer_name = "trellis"
+        rr.init(viewer_name, spawn=True)
+        rr.send_blueprint(blueprint)     
+
+        # rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Y_UP, static=True)
+        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Y_DOWN, static=True)
+        # rr.log("plot/normal_mean", rr.SeriesLine(color=[240, 45, 58]), static=True)
+        # rr.log("plot/normal_variance", rr.SeriesLine(color=[188, 77, 165]), static=True)
+        self.world_coordinate = world_coordinate
+        self.world_transform = np.eye(4)  
+
+    def log_mesh(self, label: str, 
+                 mesh_file: str,
+                 material: rr.Material = None, 
+                 colors: np.ndarray = None, 
+                 normals: np.ndarray = None, 
+                 static=False, 
+                 faces_downsample_ratio: float = 1,
+                 ) -> None:
+        assert os.path.exists(mesh_file), f"Mesh file {mesh_file} does not exist"
+        mesh = trimesh.load(mesh_file)
+        vertices = mesh.vertices
+        faces = mesh.faces
+        if faces_downsample_ratio < 1:
+            # random sample faces
+            indices = np.random.choice(faces.shape[0], int(faces.shape[0] * faces_downsample_ratio), replace=False)
+            faces = faces[indices]
+        vertices = (self.world_transform[:3,:3] @ vertices.T + self.world_transform[:3,3:4]).T
+        if colors is None:    
+            if normals is None:
+                normals = compute_vertex_normals(vertices, faces)
+            rr.log(label, rr.Mesh3D(
+                vertex_positions = vertices,
+                triangle_indices = faces,
+                vertex_normals = normals,
+                mesh_material = material,
+            ), static=static)
+        else:
+            rr.log(label, rr.Mesh3D(
+                vertex_positions = vertices,
+                triangle_indices = faces,
+                vertex_normals = normals,
+                vertex_colors = colors,
+            ), static=static)        
+
+    def log_image(self,label: str, 
+                  image_file: str, 
+                  jpeg_quality: int = 75, 
+                  static=False,
+                  ) -> None:
+        assert os.path.exists(image_file), f"Image file {image_file} does not exist"
+        image = cv2.imread(image_file)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        rr.log(label, rr.Image(image).compress(jpeg_quality=jpeg_quality), static=static)
+
+    def log_calibration(
+        self,
+        label: str,
+        resolution: list[int], # [width, height]
+        intrins: np.ndarray,
+        static=False,
+    ) -> None:
+        rr.log(
+            label,
+            rr.Pinhole(
+                resolution=resolution,
+                focal_length=[intrins[0,0], intrins[1,1]],
+                principal_point=[intrins[0,2], intrins[1,2]],
+                image_plane_distance=1.0,
+            ),
+            static=static,
+        )
+
+    def log_cam_pose(self, label: str, 
+                     c2w: np.ndarray, 
+                     static=False,
+                     ) -> None:
+        c2w = self.world_transform @ c2w
+        tvec = c2w[:3, 3]
+        quat_xyzw = rotation_matrix_to_quaternion(c2w[:3, :3])
+        rr.log(label, rr.Transform3D(translation=tvec, rotation=rr.Quaternion(xyzw=quat_xyzw)), static=static)
+
+    def set_time_sequence(self, frame_index: int) -> None:
+        rr.set_time_sequence("frame_index", frame_index)         

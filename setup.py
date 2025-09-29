@@ -14,7 +14,7 @@ setup(
         "opencv-python==4.8.0.74",
         "omegaconf",
         "rich",
-        "rerun",
+        "rerun-sdk",
         "smplx",
         "trimesh",
     ],

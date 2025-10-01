@@ -168,7 +168,7 @@ def save_point_cloud_to_ply(pts_3d, filepath, colors=None):
     ply_element = PlyElement.describe(points_array, 'vertex')
     # Write to a PLY file
     PlyData([ply_element]).write(filepath)
-    print(f"Point cloud saved to {filepath}")
+    # print(f"Point cloud saved to {filepath}")
 
 # Function to read PLY file and extract point clouds
 def read_point_cloud_from_ply(filepath):

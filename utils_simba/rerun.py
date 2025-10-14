@@ -49,8 +49,9 @@ def compute_vertex_normals(vertices, faces):
 class Visualizer:
     def __init__(
         self,
+        viewer_name: str = "trellis",
         jpeg_quality: int = 75,
-        world_coordinate: str = "object",   
+        world_coordinate: str = "object",
     ) -> None:
         # To be parametrized later
         self._jpeg_quality = jpeg_quality
@@ -66,7 +67,6 @@ class Visualizer:
             ),
             row_shares=[5, 2],
         )
-        viewer_name = "trellis"
         rr.init(viewer_name, spawn=True)
         rr.send_blueprint(blueprint)     
 
@@ -149,4 +149,20 @@ class Visualizer:
         rr.log(label, rr.Transform3D(translation=tvec, rotation=rr.Quaternion(xyzw=quat_xyzw)), static=static)
 
     def set_time_sequence(self, frame_index: int) -> None:
-        rr.set_time_sequence("frame_index", frame_index)         
+        rr.set_time_sequence("frame_index", frame_index)
+
+    def log_points(self, label: str, 
+                   points: np.ndarray, 
+                   colors: np.ndarray = None, 
+                   sizes: np.ndarray = None,
+                   radii: float = 0.0003,
+                   static=False,
+                   ) -> None:
+        points = (self.world_transform[:3,:3] @ points.T + self.world_transform[:3,3:4]).T
+        if colors is None:
+            rr.log(label, rr.Points3D(positions=points, radii=radii), static=static)
+        else:
+            if sizes is None:
+                rr.log(label, rr.Points3D(positions=points, colors=colors, radii=radii), static=static)
+            else:
+                rr.log(label, rr.Points3D(positions=points, colors=colors, radii=sizes), static=static)         

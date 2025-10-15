@@ -290,28 +290,37 @@ import os
 import cv2
 
 def rotation_matrix_to_quaternion(R):
-        """
-        Convert a rotation matrix to a quaternion.
-
-        Parameters:
-        - R: A 3x3 rotation matrix.
-
-        Returns:
-        - A quaternion in the format [x, y, z, w].
-        """
-        # Make sure the matrix is a numpy array
-        R = np.asarray(R)
-        # Allocate space for the quaternion
-        q = np.empty((4,), dtype=np.float32)
-        # Compute the quaternion components
-        q[3] = np.sqrt(np.maximum(0, 1 + R[0, 0] + R[1, 1] + R[2, 2])) / 2
-        q[0] = np.sqrt(np.maximum(0, 1 + R[0, 0] - R[1, 1] - R[2, 2])) / 2
-        q[1] = np.sqrt(np.maximum(0, 1 - R[0, 0] + R[1, 1] - R[2, 2])) / 2
-        q[2] = np.sqrt(np.maximum(0, 1 - R[0, 0] - R[1, 1] + R[2, 2])) / 2
-        q[0] *= np.sign(q[0] * (R[2, 1] - R[1, 2]))
-        q[1] *= np.sign(q[1] * (R[0, 2] - R[2, 0]))
-        q[2] *= np.sign(q[2] * (R[1, 0] - R[0, 1]))
-        return q
+    R = np.asarray(R, dtype=np.float64)
+    q = np.empty(4)
+    trace = np.trace(R)
+    if trace > 0:
+        s = 0.5 / np.sqrt(trace + 1.0)
+        q[3] = 0.25 / s
+        q[0] = (R[2,1] - R[1,2]) * s
+        q[1] = (R[0,2] - R[2,0]) * s
+        q[2] = (R[1,0] - R[0,1]) * s
+    else:
+        # Find the largest diagonal element
+        i = np.argmax(np.diag(R))
+        if i == 0:
+            s = 2.0 * np.sqrt(1.0 + R[0,0] - R[1,1] - R[2,2])
+            q[3] = (R[2,1] - R[1,2]) / s
+            q[0] = 0.25 * s
+            q[1] = (R[0,1] + R[1,0]) / s
+            q[2] = (R[0,2] + R[2,0]) / s
+        elif i == 1:
+            s = 2.0 * np.sqrt(1.0 + R[1,1] - R[0,0] - R[2,2])
+            q[3] = (R[0,2] - R[2,0]) / s
+            q[0] = (R[0,1] + R[1,0]) / s
+            q[1] = 0.25 * s
+            q[2] = (R[1,2] + R[2,1]) / s
+        else:
+            s = 2.0 * np.sqrt(1.0 + R[2,2] - R[0,0] - R[1,1])
+            q[3] = (R[1,0] - R[0,1]) / s
+            q[0] = (R[0,2] + R[2,0]) / s
+            q[1] = (R[1,2] + R[2,1]) / s
+            q[2] = 0.25 * s
+    return q  # [x, y, z, w]
 
 import trimesh
 def get_mesh_info(mesh_file):

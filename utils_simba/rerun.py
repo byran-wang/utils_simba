@@ -51,7 +51,7 @@ class Visualizer:
         self,
         viewer_name: str = "trellis",
         jpeg_quality: int = 75,
-        log_axis: bool = True,
+        ImagePlaneDistance: float = 1.0,
         world_coordinate: str = "object",
     ) -> None:
         # To be parametrized later
@@ -60,11 +60,11 @@ class Visualizer:
         # Prepare the rerun rerun log configuration
         #
         blueprint = rrb.Vertical(
-            rrb.Spatial3DView(name="object", 
-                            defaults=[rr.components.ImagePlaneDistance(1.0)],
+            rrb.Spatial3DView(name="world", 
+                            defaults=[rr.components.ImagePlaneDistance(ImagePlaneDistance)],
                             origin="/"),                         
             rrb.Horizontal(
-                rrb.Spatial2DView(name="camera", origin="/camera"),
+                rrb.Spatial2DView(name="image", origin="camera"),
             ),
             row_shares=[5, 2],
         )
@@ -75,9 +75,6 @@ class Visualizer:
         rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Y_DOWN, static=True)
         # rr.log("plot/normal_mean", rr.SeriesLine(color=[240, 45, 58]), static=True)
         # rr.log("plot/normal_variance", rr.SeriesLine(color=[188, 77, 165]), static=True)
-
-        if log_axis:
-            self.log_axis()
         self.world_coordinate = world_coordinate
         self.world_transform = np.eye(4)  
 
@@ -146,12 +143,13 @@ class Visualizer:
 
     def log_cam_pose(self, label: str, 
                      c2w: np.ndarray, 
+                     axis_length: float = 0.1,
                      static=False,
                      ) -> None:
         c2w = self.world_transform @ c2w
         tvec = c2w[:3, 3]
         quat_xyzw = rotation_matrix_to_quaternion(c2w[:3, :3])
-        rr.log(label, rr.Transform3D(translation=tvec, rotation=rr.Quaternion(xyzw=quat_xyzw)), static=static)
+        rr.log(label, rr.Transform3D(translation=tvec, rotation=rr.Quaternion(xyzw=quat_xyzw), axis_length=axis_length, from_parent=False), static=static)
 
     def set_time_sequence(self, frame_index: int) -> None:
         rr.set_time_sequence("frame_index", frame_index)
@@ -173,10 +171,10 @@ class Visualizer:
                 rr.log(label, rr.Points3D(positions=points, colors=colors, radii=sizes), static=static)
 
     def log_axis(self,
-                       label: str = "world/", 
+                       label: str = "axis", 
                        scale: float = 1.0):
         origins = np.zeros((3, 3))
         ends = np.eye(3) * scale
         colors = np.eye(3,4)
         colors[:,-1] = 1
-        rr.log(f"{label}axis", rr.Arrows3D(origins=origins, vectors=ends, colors=colors), timeless=True)             
+        rr.log(f"{label}", rr.Arrows3D(origins=origins, vectors=ends, colors=colors), timeless=True)             

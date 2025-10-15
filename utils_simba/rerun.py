@@ -51,6 +51,7 @@ class Visualizer:
         self,
         viewer_name: str = "trellis",
         jpeg_quality: int = 75,
+        log_axis: bool = True,
         world_coordinate: str = "object",
     ) -> None:
         # To be parametrized later
@@ -74,6 +75,9 @@ class Visualizer:
         rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Y_DOWN, static=True)
         # rr.log("plot/normal_mean", rr.SeriesLine(color=[240, 45, 58]), static=True)
         # rr.log("plot/normal_variance", rr.SeriesLine(color=[188, 77, 165]), static=True)
+
+        if log_axis:
+            self.log_axis()
         self.world_coordinate = world_coordinate
         self.world_transform = np.eye(4)  
 
@@ -126,6 +130,7 @@ class Visualizer:
         label: str,
         resolution: list[int], # [width, height]
         intrins: np.ndarray,
+        image_plane_distance: float = 0.1,
         static=False,
     ) -> None:
         rr.log(
@@ -134,7 +139,7 @@ class Visualizer:
                 resolution=resolution,
                 focal_length=[intrins[0,0], intrins[1,1]],
                 principal_point=[intrins[0,2], intrins[1,2]],
-                image_plane_distance=1.0,
+                image_plane_distance=image_plane_distance,
             ),
             static=static,
         )
@@ -155,7 +160,7 @@ class Visualizer:
                    points: np.ndarray, 
                    colors: np.ndarray = None, 
                    sizes: np.ndarray = None,
-                   radii: float = 0.0003,
+                   radii: float = 0.001,
                    static=False,
                    ) -> None:
         points = (self.world_transform[:3,:3] @ points.T + self.world_transform[:3,3:4]).T
@@ -165,4 +170,13 @@ class Visualizer:
             if sizes is None:
                 rr.log(label, rr.Points3D(positions=points, colors=colors, radii=radii), static=static)
             else:
-                rr.log(label, rr.Points3D(positions=points, colors=colors, radii=sizes), static=static)         
+                rr.log(label, rr.Points3D(positions=points, colors=colors, radii=sizes), static=static)
+
+    def log_axis(self,
+                       label: str = "world/", 
+                       scale: float = 1.0):
+        origins = np.zeros((3, 3))
+        ends = np.eye(3) * scale
+        colors = np.eye(3,4)
+        colors[:,-1] = 1
+        rr.log(f"{label}axis", rr.Arrows3D(origins=origins, vectors=ends, colors=colors), timeless=True)             

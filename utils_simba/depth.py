@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import torch
 
 def save_depth(depth, fname, scale= 0.00012498664727900177):
     depth_scale = 1 / scale
@@ -27,9 +28,6 @@ def get_depth(depth_file, zfar=np.inf, depth_scale = 0.00012498664727900177):
     depth[(depth<0.01) | (depth>=zfar)] = 0
     return depth
 
-import numba
-
-import torch
 
 def depth2xyzmap_cuda(depth, K, uvs=None):
     H, W = depth.shape[-2:]  # assume (H, W) or (1, H, W)

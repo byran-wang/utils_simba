@@ -4,17 +4,13 @@ import json
 import os
 from pathlib import Path
 from typing import NamedTuple
-from rich.console import Console
 import math
 from glob import glob
 import pickle
 import cv2
 import os.path as op
 import shutil
-import sys
-CONSOLE = Console(width=120)
 import subprocess
-import copy
 
 class CameraInfo(NamedTuple):
     uid: int

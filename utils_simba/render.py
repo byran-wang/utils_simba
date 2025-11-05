@@ -205,6 +205,39 @@ def nvdiffrast_render(K=None, H=None, W=None, ob_in_cams=None, glctx=None, conte
   extra['xyz_map'] = torch.flip(xyz_map, dims=[1])
   return color, depth, normal_map
 
+def diff_color_renderer(verts, tri, color, projection, ob_in_cvcams, resolution):
+  '''
+  Render the 3D mesh using the given parameters.
+  Args:
+      verts: (1, N, 3) torch tensor - Vertex positions.
+      tri: (M, 3) torch tensor  - Triangle indices.
+      color: (1, N, 3) torch tensor - Vertex colors.
+      projection: (4, 4) torch tensor - Projection matrix.
+      ob_in_cvcams: (4, 4) torch tensor, openCV camera- Camera extrinsics.
+      resolution: (H, W) - Output image resolution.
+  Returns:
+      img: (H, W, 3) - Rendered image.
+  '''
+  device = projection.device
+
+  ones = torch.ones(1, verts.shape[1], 1).to(device)
+  pos = torch.cat((verts, ones), dim=2).float() # augumented pos
+
+  # try:
+  #     view_matrix = torch.inverse(c2ws)
+  # except:
+  #     view_matrix = torch.linalg.pinv(c2ws)
+  ob_in_glcams = torch.tensor(glcam_in_cvcam, device='cuda', dtype=torch.float) @ ob_in_cvcams
+  mat = (projection @ ob_in_glcams).unsqueeze(0)
+  pos_clip = pos @ mat.mT
+
+  rast, _ = dr.rasterize(self.glctx, pos_clip, tri, resolution)
+  out, _ = dr.interpolate(color, rast, tri)
+  out = dr.antialias(out, rast, pos_clip, tri)
+  img = torch.flip(out[0], dims=[0]) # Flip vertically.
+
+  return img
+
 def get_ray_origin_direction(c2w: torch.Tensor, K: torch.Tensor, pixel_coords: torch.Tensor):
     """
     Compute ray origins and directions in world coordinates for given pixel coordinates.

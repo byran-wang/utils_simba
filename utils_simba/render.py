@@ -205,7 +205,7 @@ def nvdiffrast_render(K=None, H=None, W=None, ob_in_cams=None, glctx=None, conte
   extra['xyz_map'] = torch.flip(xyz_map, dims=[1])
   return color, depth, normal_map
 
-def diff_color_renderer(verts, tri, color, projection, ob_in_cvcams, resolution):
+def diff_color_renderer(verts, tri, color, projection, ob_in_cvcams, resolution, glctx):
   '''
   Render the 3D mesh using the given parameters.
   Args:
@@ -231,7 +231,7 @@ def diff_color_renderer(verts, tri, color, projection, ob_in_cvcams, resolution)
   mat = (projection @ ob_in_glcams).unsqueeze(0)
   pos_clip = pos @ mat.mT
 
-  rast, _ = dr.rasterize(self.glctx, pos_clip, tri, resolution)
+  rast, _ = dr.rasterize(glctx, pos_clip, tri, resolution)
   out, _ = dr.interpolate(color, rast, tri)
   out = dr.antialias(out, rast, pos_clip, tri)
   img = torch.flip(out[0], dims=[0]) # Flip vertically.

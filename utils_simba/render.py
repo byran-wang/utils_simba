@@ -91,6 +91,23 @@ def projection_matrix_from_intrinsics(K, height, width, znear, zfar, window_coor
 
   return proj
 
+def projection_matrix_to_intrinsics(proj_mat, W, H):
+  """Conversion of OpenGL proj. matrix to Hartley-Zisserman intrinsic matrix.
+
+  :param proj_mat: 4x4 ndarray with the OpenGL projection matrix.
+  :param W: Image width.
+  :param H: Image height.
+  :return: 3x3 ndarray with the intrinsic camera matrix.
+  """
+  # Extract the relevant components from the projection matrix
+  K = np.zeros((3, 3), dtype=np.float32) 
+  K[0, 0] = proj_mat[0, 0] * W / 2.0
+  K[1, 1] = proj_mat[1, 1] * H / 2.0
+  K[0, 2] = (1.0 - proj_mat[0, 2]) * W / 2.0
+  K[1, 2] = (proj_mat[1, 2] + 1.0) * H / 2.0
+  return K  
+
+
 def transform_pts(pts,tf):
   """Transform 2d or 3d points
   @pts: (...,N_pts,3)

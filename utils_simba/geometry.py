@@ -133,7 +133,7 @@ def depth_to_pts3d(focals, principal_points, c2w4x4, depth):
         depth (tensor): Depth map (N, H, W).
 
     Returns:
-        numpy.ndarray: 3D points in world frame with shape of (N, H, W, 3).
+        tensor: 3D points in world frame with shape of (N, H, W, 3).
     """
 
     # Get grid
@@ -144,6 +144,24 @@ def depth_to_pts3d(focals, principal_points, c2w4x4, depth):
     ptmaps_in_c = fast_depthmap_to_pts3d(depth, grid, focals, pp=principal_points) # (N, P, 3)
     # Project to world frame
     return geotrf(c2w4x4, ptmaps_in_c) # (N, P, 3)
+
+def depth_to_pts3d_without_transform(depth, K):
+    """
+    Convert depth map to 3D points in world frame.
+
+    Args:
+        depth (tensor): Depth map (N, H, W).
+        K (tensor): Intrinsic matrix of the camera (N, 3, 3).
+
+    Returns:
+        tensor: 3D points in world frame with shape of (N, H, W, 3).
+    """
+    focals = K[:, 0, 0].unsqueeze(1)  # (N, 1)
+    principal_points = torch.stack((K[:, 0, 2], K[:, 1, 2]), dim=-1)  # (N, 2)
+    c2w4x4 = torch.eye(4, device=depth.device).unsqueeze(0)  # (N, 4, 4)
+    pts_3D = depth_to_pts3d(focals, principal_points, c2w4x4, depth)
+    return pts_3D
+
 
 
 def save_point_cloud_to_ply(pts_3d, filepath, colors=None):

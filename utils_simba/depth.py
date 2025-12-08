@@ -173,8 +173,8 @@ def gauss_filter_depth_map(depth, radius=2, sigma_d=1.0, sigma_r=0.05, zfar=np.i
     Args:
         depth: 2D depth array.
         radius: half-window size for filtering.
-        sigma_d: spatial Gaussian sigma.
-        sigma_r: range Gaussian sigma (depth domain).
+        sigma_d: Penalizes distance in image space determining how far from the center pixel the filter is willing to gather information.
+        sigma_r: Penalizes difference in depth values controling how much depth difference is allowed before a neighbor is rejected. Small sigma_r → strict, even small depth differences → strongly down-weighted. → preserves edges sharply → BUT may oversuppress smoothing (too selective)
         zfar: maximum valid depth.
     """
     h, w = depth.shape

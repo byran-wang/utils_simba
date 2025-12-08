@@ -59,17 +59,17 @@ class Visualizer:
         #
         # Prepare the rerun rerun log configuration
         #
-        blueprint = rrb.Vertical(
-            rrb.Spatial3DView(name="world", 
-                            defaults=[rr.components.ImagePlaneDistance(ImagePlaneDistance)],
-                            origin="/"),                         
-            rrb.Horizontal(
-                rrb.Spatial2DView(name="image", origin="camera"),
-            ),
-            row_shares=[5, 2],
-        )
+        # blueprint = rrb.Vertical(
+        #     rrb.Spatial3DView(name="world", 
+        #                     defaults=[rr.components.ImagePlaneDistance(ImagePlaneDistance)],
+        #                     origin="/"),                         
+        #     rrb.Horizontal(
+        #         rrb.Spatial2DView(name="image", origin="camera"),
+        #     ),
+        #     row_shares=[5, 2],
+        # )
         rr.init(viewer_name, spawn=True)
-        rr.send_blueprint(blueprint)     
+        # rr.send_blueprint(blueprint)     
 
         # rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Y_UP, static=True)
         rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Y_DOWN, static=True)
@@ -127,7 +127,7 @@ class Visualizer:
         label: str,
         resolution: list[int], # [width, height]
         intrins: np.ndarray,
-        image_plane_distance: float = 0.1,
+        image_plane_distance: float = 1.0,
         static=False,
     ) -> None:
         rr.log(
@@ -152,7 +152,7 @@ class Visualizer:
         rr.log(label, rr.Transform3D(translation=tvec, rotation=rr.Quaternion(xyzw=quat_xyzw), axis_length=axis_length, from_parent=False), static=static)
 
     def set_time_sequence(self, frame_index: int) -> None:
-        rr.set_time_sequence("frame_index", frame_index)
+        rr.set_time_sequence("frame", frame_index)
 
     def log_points(self, label: str, 
                    points: np.ndarray, 

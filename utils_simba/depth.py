@@ -131,3 +131,94 @@ def xyz2depthmap(xyz, K, image_size):
             depth_map[pixel_v, pixel_u] = depth
 
     return depth_map
+
+def erode_depth_map(depth, structure_size=1, d_thresh=0.05, frac_req=0.5, zfar=np.inf):
+    """drop pixels whose neighbors disagree too much.
+
+    Args:
+        depth: 2D depth array.
+        structure_size: half-window size for the neighborhood.
+        d_thresh: allowed depth difference to treat a neighbor as consistent.
+        frac_req: fraction of inconsistent neighbors to trigger removal.
+        zfar: maximum valid depth.
+    """
+    h, w = depth.shape
+    out = np.zeros_like(depth, dtype=np.float32)
+    win = range(-structure_size, structure_size + 1)
+    for y in range(h):
+        for x in range(w):
+            center = depth[y, x]
+            if center <= 0.1 or center > zfar:
+                out[y, x] = 0
+                continue
+            count = 0
+            for dy in win:
+                ny = y + dy
+                if ny < 0 or ny >= h:
+                    continue
+                for dx in win:
+                    nx = x + dx
+                    if nx < 0 or nx >= w:
+                        continue
+                    val = depth[ny, nx]
+                    if val <= 0.1 or val > zfar or abs(val - center) > d_thresh:
+                        count += 1
+            total = (2 * structure_size + 1) ** 2
+            out[y, x] = 0 if (count / total) >= frac_req else center
+    return out
+
+def gauss_filter_depth_map(depth, radius=2, sigma_d=1.0, sigma_r=0.05, zfar=np.inf):
+    """bilateral-like smoothing on valid, consistent depths.
+
+    Args:
+        depth: 2D depth array.
+        radius: half-window size for filtering.
+        sigma_d: spatial Gaussian sigma.
+        sigma_r: range Gaussian sigma (depth domain).
+        zfar: maximum valid depth.
+    """
+    h, w = depth.shape
+    out = np.zeros_like(depth, dtype=np.float32)
+    win = range(-radius, radius + 1)
+    total_neighbors = (2 * radius + 1) ** 2
+    for y in range(h):
+        for x in range(w):
+            mean_depth = 0.0
+            valid_count = 0
+            for dy in win:
+                ny = y + dy
+                if ny < 0 or ny >= h:
+                    continue
+                for dx in win:
+                    nx = x + dx
+                    if nx < 0 or nx >= w:
+                        continue
+                    dval = depth[ny, nx]
+                    if 0.1 <= dval <= zfar:
+                        valid_count += 1
+                        mean_depth += dval
+            if valid_count == 0:
+                continue
+            mean_depth /= valid_count
+
+            center_depth = depth[y, x]
+            sum_w = 0.0
+            sum_val = 0.0
+            for dy in win:
+                ny = y + dy
+                if ny < 0 or ny >= h:
+                    continue
+                for dx in win:
+                    nx = x + dx
+                    if nx < 0 or nx >= w:
+                        continue
+                    dval = depth[ny, nx]
+                    if 0.1 <= dval <= zfar and abs(dval - mean_depth) < 0.01:
+                        spatial = (dx * dx + dy * dy) / (2.0 * sigma_d * sigma_d)
+                        range_term = ((center_depth - dval) ** 2) / (2.0 * sigma_r * sigma_r)
+                        weight = np.exp(-(spatial + range_term))
+                        sum_w += weight
+                        sum_val += weight * dval
+            if sum_w > 0.0 and valid_count / total_neighbors > 0:
+                out[y, x] = sum_val / sum_w
+    return out

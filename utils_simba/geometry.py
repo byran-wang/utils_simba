@@ -6,8 +6,8 @@ import trimesh
 from PIL import Image
 import open3d as o3d
 import os
-from pytorch3d.transforms.rotation_conversions import matrix_to_axis_angle
-import pytorch3d.transforms.rotation_conversions as rot_cvt
+# from pytorch3d.transforms.rotation_conversions import matrix_to_axis_angle
+# import pytorch3d.transforms.rotation_conversions as rot_cvt
 
 def fast_depthmap_to_pts3d(depth, pixel_grid, focal, pp):
     """

@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import torch
+import torch.nn.functional as F
 
 def save_depth(depth, fname, scale= 0.00012498664727900177):
     depth_scale = 1 / scale
@@ -222,3 +223,78 @@ def gauss_filter_depth_map(depth, radius=2, sigma_d=1.0, sigma_r=0.05, zfar=np.i
             if sum_w > 0.0 and valid_count / total_neighbors > 0:
                 out[y, x] = sum_val / sum_w
     return out
+
+
+def erode_depth_map_torch(depth: torch.Tensor, structure_size: int = 1, d_thresh: float = 0.05, frac_req: float = 0.5, zfar: float = float("inf")) -> torch.Tensor:
+    """CUDA-friendly version of erodeDepthMapDevice.
+
+    Args:
+        depth: (H, W) torch tensor (supports CUDA) with depths.
+        structure_size: half-window size.
+        d_thresh: allowed difference between center and neighbors.
+        frac_req: fraction of inconsistent neighbors needed to drop the center.
+        zfar: maximum valid depth.
+    """
+    if depth.dim() != 2:
+        raise ValueError("depth must be HxW tensor")
+    device = depth.device
+    k = 2 * structure_size + 1
+    padded = F.pad(depth.unsqueeze(0).unsqueeze(0), (structure_size,) * 4, mode="constant", value=0)
+    patches = F.unfold(padded, kernel_size=k)  # [1, k*k, H*W]
+    h, w = depth.shape
+    center = depth.reshape(1, 1, h * w)
+    valid_neighbors = (patches > 0.1) & (patches <= zfar)
+    diff_mask = torch.abs(patches - center) > d_thresh
+    inconsistent = (~valid_neighbors) | diff_mask
+    count = inconsistent.sum(dim=1)
+    total = float(k * k)
+    keep = (count.float() / total) < frac_req
+    center_valid = (center > 0.1) & (center <= zfar)
+    keep = keep & center_valid.squeeze(1)
+    out = torch.where(keep, center.squeeze(1), torch.zeros_like(center.squeeze(1)))
+    return out.view(h, w).to(device)
+
+
+def gauss_filter_depth_map_torch(depth: torch.Tensor, radius: int = 2, sigma_d: float = 1.0, sigma_r: float = 0.05, zfar: float = float("inf")) -> torch.Tensor:
+    """CUDA-friendly version of gaussFilterDepthMapDevice using a bilateral-like filter.
+
+    Args:
+        depth: 2D depth array.
+        radius: half-window size for filtering.
+        sigma_d: Penalizes distance in image space determining how far from the center pixel the filter is willing to gather information.
+        sigma_r: Penalizes difference in depth values controling how much depth difference is allowed before a neighbor is rejected. Small sigma_r → strict, even small depth differences → strongly down-weighted. → preserves edges sharply → BUT may oversuppress smoothing (too selective)
+        zfar: maximum valid depth.
+    """
+    if depth.dim() != 2:
+        raise ValueError("depth must be HxW tensor")
+    device = depth.device
+    depth = depth.float()
+    k = 2 * radius + 1
+    h, w = depth.shape
+    padded = F.pad(depth.unsqueeze(0).unsqueeze(0), (radius,) * 4, mode="constant", value=0)
+    patches = F.unfold(padded, kernel_size=k)  # [1, k*k, H*W] flattened row-major
+    center = depth.reshape(1, 1, h * w)
+
+    valid_mask = (patches >= 0.1) & (patches <= zfar)
+    valid_count = valid_mask.sum(dim=1).float()  # [1, H*W]
+    sum_valid = (patches * valid_mask).sum(dim=1)
+    mean_depth = torch.zeros_like(sum_valid)
+    nonzero = valid_count > 0
+    mean_depth[nonzero] = sum_valid[nonzero] / valid_count[nonzero]
+
+    # Spatial term aligned with unfold order (y first, then x).
+    offsets_y = torch.arange(k, device=device).view(k, 1).expand(k, k) - radius
+    offsets_x = torch.arange(k, device=device).view(1, k).expand(k, k) - radius
+    spatial = (offsets_x ** 2 + offsets_y ** 2).reshape(-1).float() / (2.0 * sigma_d * sigma_d)  # [k*k]
+
+    within_mean = torch.abs(patches - mean_depth.unsqueeze(1)) < 0.01
+    range_term = (center - patches) ** 2 / (2.0 * sigma_r * sigma_r)
+    weights = torch.exp(-(spatial.view(1, -1, 1) + range_term))
+    weights = weights * valid_mask * within_mean
+
+    sum_w = weights.sum(dim=1)
+    sum_val = (weights * patches).sum(dim=1)
+    mask_out = (sum_w > 0) & (valid_count > 0)
+    out = torch.zeros_like(sum_w)
+    out[mask_out] = sum_val[mask_out] / sum_w[mask_out]
+    return out.view(h, w)

@@ -4,7 +4,7 @@ import torch
 from plyfile import PlyData, PlyElement
 import trimesh
 from PIL import Image
-import open3d as o3d
+
 import os
 # from pytorch3d.transforms.rotation_conversions import matrix_to_axis_angle
 # import pytorch3d.transforms.rotation_conversions as rot_cvt
@@ -260,6 +260,7 @@ def read_point_cloud_from_obj(obj_file, texture_file=None):
     return positions, colors
 
 def convert_point_cloud(pc_f, pc_normalized_f, transformation_matrix):
+    import open3d as o3d
     pcd = o3d.io.read_point_cloud(pc_f)
     if not pcd.has_points():
         raise ValueError(f"The point cloud at {pc_f} has no points.")

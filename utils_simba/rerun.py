@@ -177,4 +177,11 @@ class Visualizer:
         ends = np.eye(3) * scale
         colors = np.eye(3,4)
         colors[:,-1] = 1
-        rr.log(f"{label}", rr.Arrows3D(origins=origins, vectors=ends, colors=colors), timeless=True)             
+        rr.log(f"{label}", rr.Arrows3D(origins=origins, vectors=ends, colors=colors), timeless=True)
+
+    def log_3d_asset(self,
+                     label: str,
+                     mesh_path: str,
+                     static: bool = False
+                     ):
+        rr.log(label, rr.Asset3D(path=mesh_path, ), static=static,)

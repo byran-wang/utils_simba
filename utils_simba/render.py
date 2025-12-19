@@ -134,7 +134,7 @@ def transform_dirs(dirs,tf):
     tf = tf[...,None,:,:]
   return (tf[...,:3,:3]@dirs[...,None])[...,0]
 
-def nvdiffrast_render(K=None, H=None, W=None, ob_in_cams=None, glctx=None, context='cuda', get_normal=False, mesh_tensors=None, mesh=None, projection_mat=None, bbox2d=None, output_size=None, use_light=False, light_color=None, light_dir=np.array([0,0,1]), light_pos=np.array([0,0,0]), w_ambient=0.8, w_diffuse=0.5, extra={}):
+def nvdiffrast_render(K=None, H=None, W=None, ob_in_cvcams=None, glctx=None, context='cuda', get_normal=False, mesh_tensors=None, mesh=None, projection_mat=None, bbox2d=None, output_size=None, use_light=False, light_color=None, light_dir=np.array([0,0,1]), light_pos=np.array([0,0,0]), w_ambient=0.8, w_diffuse=0.5, extra={}):
   '''Just plain rendering, not support any gradient
   @K: (3,3) np array
   @ob_in_cams: (N,4,4) torch tensor, openCV camera
@@ -157,10 +157,10 @@ def nvdiffrast_render(K=None, H=None, W=None, ob_in_cams=None, glctx=None, conte
     mesh_tensors = make_mesh_tensors(mesh)
   pos = mesh_tensors['pos']
   vnormals = mesh_tensors['vnormals']
-  pos_idx = mesh_tensors['faces']
+  tri = mesh_tensors['faces']
   has_tex = 'tex' in mesh_tensors
 
-  ob_in_glcams = torch.tensor(glcam_in_cvcam, device='cuda', dtype=torch.float)[None]@ob_in_cams
+  ob_in_glcams = torch.tensor(glcam_in_cvcam, device='cuda', dtype=torch.float)[None]@ob_in_cvcams
   if projection_mat is None:
     projection_mat = projection_matrix_from_intrinsics(K, height=H, width=W, znear=0.1, zfar=100)
   projection_mat = torch.as_tensor(projection_mat.reshape(-1,4,4), device='cuda', dtype=torch.float)
@@ -169,7 +169,7 @@ def nvdiffrast_render(K=None, H=None, W=None, ob_in_cams=None, glctx=None, conte
   if output_size is None:
     output_size = np.asarray([H,W])
 
-  pts_cam = transform_pts(pos, ob_in_cams)
+  pts_cam = transform_pts(pos, ob_in_cvcams)
   pos_homo = to_homo_torch(pos)
   pos_clip = (mtx[:,None]@pos_homo[None,...,None])[...,0]
   if bbox2d is not None:
@@ -177,26 +177,26 @@ def nvdiffrast_render(K=None, H=None, W=None, ob_in_cams=None, glctx=None, conte
     t = H-bbox2d[:,1]
     r = bbox2d[:,2]
     b = H-bbox2d[:,3]
-    tf = torch.eye(4, dtype=torch.float, device='cuda').reshape(1,4,4).expand(len(ob_in_cams),4,4).contiguous()
+    tf = torch.eye(4, dtype=torch.float, device='cuda').reshape(1,4,4).expand(len(ob_in_cvcams),4,4).contiguous()
     tf[:,0,0] = W/(r-l)
     tf[:,1,1] = H/(t-b)
     tf[:,3,0] = (W-r-l)/(r-l)
     tf[:,3,1] = (H-t-b)/(t-b)
     pos_clip = pos_clip@tf
-  rast_out, _ = dr.rasterize(glctx, pos_clip, pos_idx, resolution=np.asarray(output_size))
-  xyz_map, _ = dr.interpolate(pts_cam, rast_out, pos_idx)
+  rast_out, _ = dr.rasterize(glctx, pos_clip, tri, resolution=np.asarray(output_size))
+  xyz_map, _ = dr.interpolate(pts_cam, rast_out, tri)
   depth = xyz_map[...,2]
   if has_tex:
     texc, _ = dr.interpolate(mesh_tensors['uv'], rast_out, mesh_tensors['uv_idx'])
     color = dr.texture(mesh_tensors['tex'], texc, filter_mode='linear')
   else:
-    color, _ = dr.interpolate(mesh_tensors['vertex_color'], rast_out, pos_idx)
+    color, _ = dr.interpolate(mesh_tensors['vertex_color'], rast_out, tri)
 
   if use_light:
     get_normal = True
   if get_normal:
-    vnormals_cam = transform_dirs(vnormals, ob_in_cams)
-    normal_map, _ = dr.interpolate(vnormals_cam, rast_out, pos_idx)
+    vnormals_cam = transform_dirs(vnormals, ob_in_cvcams)
+    normal_map, _ = dr.interpolate(vnormals_cam, rast_out, tri)
     normal_map = F.normalize(normal_map, dim=-1)
     normal_map = torch.flip(normal_map, dims=[1])
   else:
@@ -208,7 +208,7 @@ def nvdiffrast_render(K=None, H=None, W=None, ob_in_cams=None, glctx=None, conte
     else:
       light_dir_neg = torch.as_tensor(light_pos, dtype=torch.float, device='cuda').reshape(1,1,3) - pts_cam
     diffuse_intensity = (F.normalize(vnormals_cam, dim=-1) * F.normalize(light_dir_neg, dim=-1)).sum(dim=-1).clip(0, 1)[...,None]
-    diffuse_intensity_map, _ = dr.interpolate(diffuse_intensity, rast_out, pos_idx)  # (N_pose, H, W, 1)
+    diffuse_intensity_map, _ = dr.interpolate(diffuse_intensity, rast_out, tri)  # (N_pose, H, W, 1)
     if light_color is None:
       light_color = color
     else:
@@ -222,7 +222,7 @@ def nvdiffrast_render(K=None, H=None, W=None, ob_in_cams=None, glctx=None, conte
   extra['xyz_map'] = torch.flip(xyz_map, dims=[1])
   return color, depth, normal_map
 
-def diff_color_renderer(verts, tri, color, projection, ob_in_cvcams, resolution, glctx):
+def diff_renderer(verts, tri, color, projection, ob_in_cvcams, resolution, glctx):
   '''
   Render the 3D mesh using the given parameters.
   Args:
@@ -244,16 +244,22 @@ def diff_color_renderer(verts, tri, color, projection, ob_in_cvcams, resolution,
   #     view_matrix = torch.inverse(c2ws)
   # except:
   #     view_matrix = torch.linalg.pinv(c2ws)
+  pts_cam = transform_pts(pos[..., :3], ob_in_cvcams[None])
   ob_in_glcams = torch.tensor(glcam_in_cvcam, device='cuda', dtype=torch.float) @ ob_in_cvcams
-  mat = (projection @ ob_in_glcams).unsqueeze(0)
-  pos_clip = pos @ mat.mT
+  mtx = (projection @ ob_in_glcams).unsqueeze(0)
+  pos_clip = pos @ mtx.mT
+  
 
-  rast, _ = dr.rasterize(glctx, pos_clip, tri, resolution)
-  out, _ = dr.interpolate(color, rast, tri)
-  out = dr.antialias(out, rast, pos_clip, tri)
+  rast_out, _ = dr.rasterize(glctx, pos_clip, tri, resolution)
+
+  xyz_map, _ = dr.interpolate(pts_cam, rast_out, tri)
+  depth = xyz_map[...,2]  
+
+  out, _ = dr.interpolate(color, rast_out, tri)
+  out = dr.antialias(out, rast_out, pos_clip, tri)
   img = torch.flip(out[0], dims=[0]) # Flip vertically.
 
-  return img
+  return img, depth
 
 def get_ray_origin_direction(c2w: torch.Tensor, K: torch.Tensor, pixel_coords: torch.Tensor):
     """

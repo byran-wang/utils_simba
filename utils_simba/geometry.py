@@ -6,8 +6,6 @@ import trimesh
 from PIL import Image
 
 import os
-# from pytorch3d.transforms.rotation_conversions import matrix_to_axis_angle
-# import pytorch3d.transforms.rotation_conversions as rot_cvt
 
 def fast_depthmap_to_pts3d(depth, pixel_grid, focal, pp):
     """
@@ -562,6 +560,7 @@ def get_intrinsic_matrix_from_projection(P, w, h):
     return K
 
 def matrix_to_axis_angle_t(mat: torch.Tensor):
+    from pytorch3d.transforms.rotation_conversions import matrix_to_axis_angle
     r, t, s = homo_to_rt(mat)
     return matrix_to_axis_angle(r), t, s
 
@@ -635,6 +634,7 @@ def axis_angle_t_to_matrix(axisang=None, t=None, s=None, homo=True):
     :param t: (N, 3)
     :return: (N, 4, 4)
     """
+    import pytorch3d.transforms.rotation_conversions as rot_cvt    
     if axisang is None:
         axisang = torch.zeros_like(t)
     if t is None:

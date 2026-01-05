@@ -85,32 +85,45 @@ class Visualizer:
                  normals: np.ndarray = None, 
                  static=False, 
                  faces_downsample_ratio: float = 1,
+                 compute_normals: bool = True,
                  ) -> None:
         assert os.path.exists(mesh_file), f"Mesh file {mesh_file} does not exist"
-        mesh = trimesh.load(mesh_file)
+        mesh = trimesh.load(mesh_file, process=False)
         vertices = mesh.vertices
         faces = mesh.faces
+        mesh_colors = None
+
+        if colors is None and hasattr(mesh, "visual") and hasattr(mesh.visual, "vertex_colors"):
+            mesh_colors = np.asarray(mesh.visual.vertex_colors)
+            if mesh_colors.ndim != 2 or mesh_colors.shape[0] != vertices.shape[0]:
+                mesh_colors = None
+        elif colors is None and hasattr(mesh, "visual") and hasattr(mesh.visual, "to_color") and callable(mesh.visual.to_color):
+            mesh_colors = mesh.visual.to_color().vertex_colors
+            if mesh_colors.ndim != 2 or mesh_colors.shape[0] != vertices.shape[0]:
+                mesh_colors = None
+        
+        colors = colors if colors is not None else mesh_colors
         if faces_downsample_ratio < 1:
             # random sample faces
             indices = np.random.choice(faces.shape[0], int(faces.shape[0] * faces_downsample_ratio), replace=False)
             faces = faces[indices]
         vertices = (self.world_transform[:3,:3] @ vertices.T + self.world_transform[:3,3:4]).T
+        if normals is None and compute_normals:
+            normals = compute_vertex_normals(vertices, faces)
         if colors is None:    
-            if normals is None:
-                normals = compute_vertex_normals(vertices, faces)
             rr.log(label, rr.Mesh3D(
                 vertex_positions = vertices,
-                triangle_indices = faces,
+                triangle_indices = faces.astype(np.int32),
                 vertex_normals = normals,
                 mesh_material = material,
             ), static=static)
         else:
             rr.log(label, rr.Mesh3D(
                 vertex_positions = vertices,
-                triangle_indices = faces,
+                triangle_indices = faces.astype(np.int32),
                 vertex_normals = normals,
-                vertex_colors = colors,
-            ), static=static)        
+                vertex_colors = colors.astype(np.uint8),
+            ), static=static)   
 
     def log_image(self,label: str, 
                   image_file: str, 

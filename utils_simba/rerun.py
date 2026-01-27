@@ -198,3 +198,32 @@ class Visualizer:
                      static: bool = False
                      ):
         rr.log(label, rr.Asset3D(path=mesh_path, ), static=static,)
+
+def vis_camera_image_pose_intrisic_in_rerun(all_images, focal, w, h, all_c2w, image_plane_distance=0.1):
+    """Visualize camera intrinsics, poses and images in rerun."""
+    import rerun as rr
+
+    rr.init("blender_dataset", spawn=True)
+
+    n_images = len(all_images)
+    for cam_idx in range(n_images):
+        # Build intrinsic matrix
+        K = np.array([
+            [focal, 0, w / 2],
+            [0, focal, h / 2],
+            [0, 0, 1]
+        ])
+
+        c2w = all_c2w[cam_idx].cpu().numpy()
+        img = (all_images[cam_idx].cpu().numpy() * 255).astype(np.uint8)
+
+        # Log camera with pinhole model
+        rr.log(
+            f"world/camera_{cam_idx}",
+            rr.Pinhole(image_from_camera=K, resolution=[w, h], image_plane_distance=image_plane_distance),
+        )
+        rr.log(
+            f"world/camera_{cam_idx}",
+            rr.Transform3D(translation=c2w[:3, 3], mat3x3=c2w[:3, :3]),
+        )
+        rr.log(f"world/camera_{cam_idx}/image", rr.Image(img))        

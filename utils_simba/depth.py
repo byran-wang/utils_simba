@@ -368,3 +368,65 @@ def gauss_filter_depth_map_torch(depth: torch.Tensor, radius: int = 2, sigma_d: 
     out = torch.zeros_like(sum_w)
     out[mask_out] = sum_val[mask_out] / sum_w[mask_out]
     return out.view(h, w)
+
+
+def load_filtered_depth(
+    depth_file: str,
+    thresh_min: float = 0.01,
+    thresh_max: float = 1.5,
+) -> np.ndarray:
+    """Load depth and apply filtering.
+
+    Args:
+        depth_file: Path to the depth file (PNG encoded)
+        thresh_min: Minimum depth threshold (meters)
+        thresh_max: Maximum depth threshold (meters)
+
+    Returns:
+        depth: (H, W) filtered depth in meters
+    """
+    depth = get_depth(depth_file)
+    depth_tensor = torch.from_numpy(depth).float()
+
+    # Filter the depth
+    depth_tensor = erode_depth_map_torch(depth_tensor, structure_size=2, d_thresh=0.003, frac_req=0.5)
+    depth_tensor = bilateral_filter_depth(depth_tensor, d=5, sigma_color=0.2, sigma_space=15)
+    depth_tensor = remove_depth_outliers(depth_tensor, num_std=4.0, num_iterations=3)
+
+    depth_filtered = depth_tensor.numpy()
+    # Apply depth thresholds
+    depth_filtered[(depth_filtered <= thresh_min) | (depth_filtered >= thresh_max)] = 0
+
+    return depth_filtered
+
+def load_filtered_pointmap(
+    depth_file: str,
+    K: np.ndarray,
+    device: str,
+    thresh_min: float = 0.01,
+    thresh_max: float = 1.5,
+) -> torch.Tensor:
+    """Load depth, apply filtering, and convert to pointmap tensor.
+
+    Args:
+        depth_file: Path to the depth file (PNG encoded)
+        K: Camera intrinsics matrix (3x3)
+        device: torch device
+        thresh_min: Minimum depth threshold (meters)
+        thresh_max: Maximum depth threshold (meters)
+
+    Returns:
+        pointmap_tensor: (H, W, 3) tensor in pytorch3d coordinate system
+    """
+
+    depth_filtered = load_filtered_depth(depth_file)
+    # Convert filtered depth to pointmap
+    pointmap_filtered = depth2xyzmap(depth_filtered, K)
+
+    # Apply depth thresholds and convert to pytorch3d coords
+    pointmap_filtered[(pointmap_filtered[..., 2] <= thresh_min) | (pointmap_filtered[..., 2] >= thresh_max)] = np.nan
+
+    pointmap_tensor = torch.from_numpy(pointmap_filtered).float().to(device)
+    print(f"Filtered pointmap shape: {pointmap_tensor.shape}")
+
+    return pointmap_tensor

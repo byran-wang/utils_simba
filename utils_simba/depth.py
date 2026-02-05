@@ -30,6 +30,41 @@ def get_depth(depth_file, zfar=np.inf, depth_scale = 0.00012498664727900177):
     return depth
 
 
+def save_normal(normal, fname):
+    """Save normal map to 16-bit PNG file for high precision.
+
+    Uses 16-bit per channel (65536 levels) similar to save_depth encoding.
+
+    Args:
+        normal: (H, W, 3) normal map with values in range [-1, 1]
+        fname: Output filename
+    """
+    # Convert from [-1, 1] to [0, 65535] for 16-bit precision
+    normal_scaled = ((normal + 1) / 2 * 65535).astype(np.uint16)
+    # OpenCV uses BGR format
+    cv2.imwrite(fname, cv2.cvtColor(normal_scaled, cv2.COLOR_RGB2BGR))
+
+
+def get_normal(normal_file):
+    """Load normal map from 16-bit PNG file.
+
+    Args:
+        normal_file: Path to normal map PNG file
+
+    Returns:
+        normal: (H, W, 3) normal map with values in range [-1, 1]
+    """
+    # Load as 16-bit, IMREAD_UNCHANGED preserves bit depth
+    normal_uint16 = cv2.imread(normal_file, cv2.IMREAD_UNCHANGED)
+    if normal_uint16 is None:
+        raise FileNotFoundError(f"Could not load normal map: {normal_file}")
+    # Convert BGR to RGB
+    normal_uint16 = cv2.cvtColor(normal_uint16, cv2.COLOR_BGR2RGB)
+    # Convert from [0, 65535] to [-1, 1]
+    normal = (normal_uint16.astype(np.float32) / 65535.0) * 2 - 1
+    return normal
+
+
 def depth2xyzmap_cuda(depth, K, uvs=None):
     H, W = depth.shape[-2:]  # assume (H, W) or (1, H, W)
     fx, fy = K[0, 0], K[1, 1]

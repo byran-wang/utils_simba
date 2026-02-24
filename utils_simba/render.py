@@ -222,7 +222,7 @@ def nvdiffrast_render(K=None, H=None, W=None, ob_in_cvcams=None, glctx=None, con
   extra['xyz_map'] = torch.flip(xyz_map, dims=[1])
   return color, depth, normal_map
 
-def diff_renderer(verts, tri, color, projection, ob_in_cvcams, resolution, glctx):
+def diff_renderer(verts, tri, color, projection, ob_in_cvcams, resolution, glctx, get_normal=False, vnormals=None):
   '''
   Render the 3D mesh using the given parameters.
   Args:
@@ -234,6 +234,8 @@ def diff_renderer(verts, tri, color, projection, ob_in_cvcams, resolution, glctx
       resolution: (H, W) - Output image resolution.
   Returns:
       img: (H, W, 3) - Rendered image.
+      depth: (1, H, W) - Rendered depth map.
+      normal_map: (1, H, W, 3) if get_normal=True, else omitted.
   '''
   device = projection.device
 
@@ -258,6 +260,14 @@ def diff_renderer(verts, tri, color, projection, ob_in_cvcams, resolution, glctx
   out, _ = dr.interpolate(color, rast_out, tri)
   out = dr.antialias(out, rast_out, pos_clip, tri)
   img = torch.flip(out[0], dims=[0]) # Flip vertically.
+
+  if get_normal:
+    if vnormals is None:
+      raise ValueError("vnormals must be provided when get_normal=True")
+    vnormals_cam = transform_dirs(vnormals, ob_in_cvcams[None])
+    normal_map, _ = dr.interpolate(vnormals_cam, rast_out, tri)
+    normal_map = F.normalize(normal_map, dim=-1)
+    return img, depth, normal_map
 
   return img, depth
 

@@ -12,6 +12,21 @@ import os.path as op
 import shutil
 import subprocess
 
+def _load_pickle_compat(path):
+    with open(path, "rb") as f:
+        try:
+            return pickle.load(f)
+        except ModuleNotFoundError as e:
+            if "numpy._core" not in str(e):
+                raise
+            f.seek(0)
+            class _NumpyCompatUnpickler(pickle.Unpickler):
+                def find_class(self, module, name):
+                    if module.startswith("numpy._core"):
+                        module = module.replace("numpy._core", "numpy.core", 1)
+                    return super().find_class(module, name)
+            return _NumpyCompatUnpickler(f).load()
+
 class CameraInfo(NamedTuple):
     uid: int
     c2w4x4: np.array
@@ -206,7 +221,7 @@ def PreprocessHO3DFoundationPose(config):
             print(f"Warning: {rgb_f} not found")
     assert len(valid_frames) > 0
 
-    meta = pickle.load(open(intrinsic_f,'rb'))
+    meta = _load_pickle_compat(intrinsic_f)
     K = meta['camMat']
     fmt = '%.12f'
     np.savetxt(f'{intrinsic_dir}/intrins.txt', K, fmt=fmt, delimiter=' ')
@@ -328,7 +343,7 @@ def PreprocessHO3DGTPose(config):
                 mask_f = os.path.join(config['mask_path'], f"{i:05d}.png")
                 if mask_f in mask_all:
                     if i not in config.exclude_frames:
-                        meta = pickle.load(open(pose_f,'rb'))
+                        meta = _load_pickle_compat(pose_f)
                         if meta['objTrans'] is None or meta['objRot'] is None or meta['camMat'] is None:
                             print(f"Warning: Pose not found for Meta file {pose_f}, and skip frame {rgb_f}")
                             continue
@@ -379,7 +394,7 @@ def ReadHO3DGTPose(config):
     K = None
     cam_infos = [] 
     for ci, [rgb_f, rgba_f, mask_f, pose_f] in enumerate(zip(rgb_all, rgba_all, mask_all, pose_all)):
-        meta = pickle.load(open(pose_f,'rb'))
+        meta = _load_pickle_compat(pose_f)
         if meta['objTrans'] is None or meta['objRot'] is None or meta['camMat'] is None:
             print(f"Warning: Pose not found for Meta file {pose_f}, and skip frame {rgba_f}")
             assert False

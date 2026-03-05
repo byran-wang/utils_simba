@@ -1,7 +1,13 @@
+from __future__ import annotations
+
 import numpy as np
 import cv2
-import torch
-import torch.nn.functional as F
+try:
+    import torch
+    import torch.nn.functional as F
+except ImportError:
+    torch = None
+    F = None
 
 def save_depth(depth, fname, scale= 0.00012498664727900177):
     depth_scale = 1 / scale
@@ -66,6 +72,8 @@ def get_normal(normal_file):
 
 
 def depth2xyzmap_cuda(depth, K, uvs=None):
+    if torch is None:
+        raise ImportError("depth2xyzmap_cuda requires PyTorch, but torch could not be imported.")
     H, W = depth.shape[-2:]  # assume (H, W) or (1, H, W)
     fx, fy = K[0, 0], K[1, 1]
     cx, cy = K[0, 2], K[1, 2]

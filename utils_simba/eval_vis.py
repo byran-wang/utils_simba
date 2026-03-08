@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 import nvdiffrast.torch as dr
 
-from .render import nvdiffrast_render
+from .render import make_mesh_tensors, nvdiffrast_render
 
 
 def ensure_cuda_available():
@@ -296,6 +296,8 @@ def render_frames_with_nvdiffrast(
         h, w = image.shape[:2]
         pose = torch.as_tensor(frame["pose_o2c"][None], dtype=torch.float32, device="cuda")
         mesh_tensors = frame.get("mesh_tensors", default_mesh_tensors)
+        if mesh_tensors is None and "mesh" in frame:
+            mesh_tensors = make_mesh_tensors(frame["mesh"], device="cuda")
         if mesh_tensors is None:
             raise RuntimeError("No mesh tensors provided for rendering")
 

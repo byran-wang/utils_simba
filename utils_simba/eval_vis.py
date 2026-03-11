@@ -246,12 +246,9 @@ def create_video(frame_dir: Path, output_video: Path, fps: int):
 def prepare_output_dirs(
     out_dir: Path,
     *,
-    rebuild: bool,
     overlay_dir_name: str,
     normal_dir_name: str,
 ):
-    if rebuild and out_dir.exists():
-        shutil.rmtree(out_dir)
     overlay_dir = out_dir / overlay_dir_name
     normal_dir = out_dir / normal_dir_name
     overlay_dir.mkdir(parents=True, exist_ok=True)
@@ -273,7 +270,6 @@ def render_frames_with_nvdiffrast(
     out_dir: Path,
     alpha: float,
     fps: int,
-    rebuild: bool,
     default_mesh_tensors=None,
     desc: str = "Rendering normals with nvdiffrast",
     overlay_dir_name: str = "nvdiffrast_overlay_frames",
@@ -283,7 +279,6 @@ def render_frames_with_nvdiffrast(
     ensure_cuda_available()
     overlay_dir, normal_dir = prepare_output_dirs(
         out_dir,
-        rebuild=rebuild,
         overlay_dir_name=overlay_dir_name,
         normal_dir_name=normal_dir_name,
     )

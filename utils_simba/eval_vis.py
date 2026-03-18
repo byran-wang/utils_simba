@@ -264,6 +264,41 @@ def _record_frame_value(record, key, value):
     record[key] = value
 
 
+def _log_frame_to_rerun(frame, mesh_tensors, render_index, h, w):
+    import rerun as rr
+    if render_index == 0:
+        rr.init("eval_vis_debug", spawn=True)
+    frame_idx = frame.get("frame_idx", render_index)
+    rr.set_time_sequence("frame", frame_idx)
+
+    # Log mesh in camera space (transform by o2c pose)
+    verts_obj = mesh_tensors['pos'].cpu().numpy()
+    faces_np = mesh_tensors['faces'].cpu().numpy().astype(np.int32)
+    o2c = frame["pose_o2c"]
+    verts_cam = (o2c[:3, :3] @ verts_obj.T).T + o2c[:3, 3]
+    colors = None
+    if 'vertex_color' in mesh_tensors:
+        colors = (mesh_tensors['vertex_color'].cpu().numpy() * 255).astype(np.uint8)
+    normals_obj = mesh_tensors['vnormals'].cpu().numpy()
+    normals_cam = (o2c[:3, :3] @ normals_obj.T).T
+    rr.log("world/mesh", rr.Mesh3D(
+        vertex_positions=verts_cam,
+        triangle_indices=faces_np,
+        vertex_normals=normals_cam,
+        vertex_colors=colors,
+    ))
+
+    # Log camera with image
+    K = frame["K"]
+    rr.log("world/camera", rr.Pinhole(
+        resolution=[w, h],
+        focal_length=[K[0, 0], K[1, 1]],
+        principal_point=[K[0, 2], K[1, 2]],
+        image_plane_distance=1.0,
+    ))
+    rr.log("world/camera/image", rr.Image(frame["image"]).compress(jpeg_quality=80))
+
+
 def render_frames_with_nvdiffrast(
     *,
     frames,
@@ -275,6 +310,7 @@ def render_frames_with_nvdiffrast(
     overlay_dir_name: str = "nvdiffrast_overlay_frames",
     normal_dir_name: str = "nvdiffrast_normal_frames",
     video_name: str = "nvdiffrast_overlay.mp4",
+    vis_in_rerun = False,
 ):
     ensure_cuda_available()
     overlay_dir, normal_dir = prepare_output_dirs(
@@ -295,6 +331,9 @@ def render_frames_with_nvdiffrast(
             mesh_tensors = make_mesh_tensors(frame["mesh"], device="cuda")
         if mesh_tensors is None:
             raise RuntimeError("No mesh tensors provided for rendering")
+        
+        if vis_in_rerun:
+            _log_frame_to_rerun(frame, mesh_tensors, render_index, h, w)
 
         _, depth, normal = nvdiffrast_render(
             K=normalize_intrinsics(frame["K"]),

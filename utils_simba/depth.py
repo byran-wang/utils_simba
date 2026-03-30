@@ -416,7 +416,7 @@ def gauss_filter_depth_map_torch(depth: torch.Tensor, radius: int = 2, sigma_d: 
 def load_filtered_depth(
     depth_file: str,
     thresh_min: float = 0.01,
-    thresh_max: float = 1.5,
+    thresh_max: float = float("inf"),
 ) -> np.ndarray:
     """Load depth and apply filtering.
 

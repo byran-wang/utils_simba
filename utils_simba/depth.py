@@ -11,7 +11,7 @@ except ImportError:
 
 def save_depth(depth, fname, scale= 0.00012498664727900177):
     depth_scale = 1 / scale
-    max_depth = 2**24 / (1/ scale)     # max 8.19112491607666 = 2**16 / (1/ 0.00012498664727900177)
+    max_depth = 2**24 / (1/ scale)     # max 2096.927978515625 = 2**24 / (1/ 0.00012498664727900177)
     exceed_depth = depth[depth > max_depth]
     if len(exceed_depth) > 0:
         print(f"Warning: {len(exceed_depth)} depth values exceed the maximum depth of {max_depth}. Clipping to {max_depth}.")

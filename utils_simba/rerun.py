@@ -182,13 +182,30 @@ def backproject_depth_to_points(
     return pts_world.astype(np.float32), colors
 
 
+def _check_so3(R: np.ndarray, label: str = "", atol: float = 1e-4) -> None:
+    """Raise ValueError if *R* is not a valid SO(3) rotation matrix."""
+    R = np.asarray(R, dtype=np.float64)
+    if R.shape != (3, 3):
+        raise ValueError(f"Rotation matrix {label} has shape {R.shape}, expected (3, 3)")
+    err_orth = np.max(np.abs(R @ R.T - np.eye(3)))
+    if err_orth > atol:
+        raise ValueError(
+            f"Rotation matrix {label} is not orthogonal: max|R@R^T - I| = {err_orth:.6e} (atol={atol})"
+        )
+    det = np.linalg.det(R)
+    if abs(det - 1.0) > atol:
+        raise ValueError(
+            f"Rotation matrix {label} has det={det:.6e}, expected 1.0 (atol={atol})"
+        )
+
+
 def log_camera_frame(
     entity: str,
     K: np.ndarray,
     c2w: np.ndarray,
     image: Optional[np.ndarray] = None,
     image_plane_distance: float = 1.0,
-    jpeg_quality: int = 85,
+    jpeg_quality: int = 30,
     static: bool = False,
 ) -> None:
     """Log a camera transform, pinhole model, and optional image to rerun.
@@ -196,6 +213,7 @@ def log_camera_frame(
     Combines the three-call pattern: ``rr.Transform3D`` + ``rr.Pinhole`` + ``rr.Image``.
     """
     c2w = np.asarray(c2w, dtype=np.float32)
+    _check_so3(c2w[:3, :3], label=entity)
     rr.log(
         entity,
         rr.Transform3D(translation=c2w[:3, 3], mat3x3=c2w[:3, :3]),
@@ -360,6 +378,7 @@ class Visualizer:
                      static=False,
                      ) -> None:
         c2w = self.world_transform @ c2w
+        _check_so3(c2w[:3, :3], label=label)
         tvec = c2w[:3, 3]
         quat_xyzw = rotation_matrix_to_quaternion(c2w[:3, :3])
         rr.log(label, rr.Transform3D(translation=tvec, rotation=rr.Quaternion(xyzw=quat_xyzw), axis_length=axis_length, from_parent=False), static=static)

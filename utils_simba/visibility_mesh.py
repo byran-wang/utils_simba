@@ -22,13 +22,14 @@ def parse_args():
     return args
 
 
-def get_visibility_mesh(mesh_file, c2w_np_type, out_dir, idx):
+def get_visibility_mesh(mesh, c2w_np_type, out_dir, idx):
 
     voxel_size = 0.02  # Adjust voxel size as needed
     num_views = 5  # Number of camera views
     max_distance = 1000  # Maximum distance for visibility checks
-    # Load mesh
-    mesh = trimesh.load(mesh_file)
+    # Load mesh if given a file path
+    if isinstance(mesh, (str, os.PathLike)):
+        mesh = trimesh.load(mesh)
     if not isinstance(mesh, trimesh.Trimesh):
         mesh = mesh.dump().sum()  # In case the mesh is a scene with multiple meshes
     # Voxelization

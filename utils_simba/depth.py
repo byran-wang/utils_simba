@@ -29,7 +29,8 @@ def save_depth(depth, fname, scale= 0.00012498664727900177):
     # print(f"Saved depth to {fname}")
 
 def get_depth(depth_file, zfar=np.inf, depth_scale = 0.00012498664727900177):
-    # depth = cv2.imread(self.color_files[i].replace('.jpg','.png').replace('rgb','depth'), -1)
+    if isinstance(depth_file, np.ndarray):
+        return depth_file.copy()
     depth = cv2.imread(depth_file, -1)
     depth = (depth[...,0]*256.0*256.0 + depth[...,1]*256.0 + depth[...,2])*depth_scale
     depth[(depth<0.01) | (depth>=zfar)] = 0
@@ -414,27 +415,29 @@ def gauss_filter_depth_map_torch(depth: torch.Tensor, radius: int = 2, sigma_d: 
 
 
 def load_filtered_depth(
-    depth_file: str,
+    depth: "str | np.ndarray",
     thresh_min: float = 0.01,
     thresh_max: float = float("inf"),
+    filter_times: int = 3,
 ) -> np.ndarray:
     """Load depth and apply filtering.
 
     Args:
-        depth_file: Path to the depth file (PNG encoded)
+        depth: Path to the depth file (PNG encoded) or a numpy array
         thresh_min: Minimum depth threshold (meters)
         thresh_max: Maximum depth threshold (meters)
 
     Returns:
         depth: (H, W) filtered depth in meters
     """
-    depth = get_depth(depth_file)
+    depth = get_depth(depth)
     depth_tensor = torch.from_numpy(depth).float()
 
-    # Filter the depth
-    depth_tensor = erode_depth_map_torch(depth_tensor, structure_size=2, d_thresh=0.003, frac_req=0.5)
-    depth_tensor = bilateral_filter_depth(depth_tensor, d=5, sigma_color=0.2, sigma_space=15)
-    depth_tensor = remove_depth_outliers(depth_tensor, num_std=4.0, num_iterations=3)
+    for i in range(filter_times):
+        # Filter the depth
+        depth_tensor = erode_depth_map_torch(depth_tensor, structure_size=2, d_thresh=0.003, frac_req=0.5)
+        depth_tensor = bilateral_filter_depth(depth_tensor, d=5, sigma_color=0.2, sigma_space=15)
+        depth_tensor = remove_depth_outliers(depth_tensor, num_std=4.0, num_iterations=3)
 
     depth_filtered = depth_tensor.numpy()
     # Apply depth thresholds

@@ -68,6 +68,11 @@ class ColoredFormatter(logging.Formatter):
         formatter = self.formatters.get(record.levelno, self.default_formatter)
         return formatter.format(record)
 
+def PlainFormatter():
+    return logging.Formatter(
+        "%(levelname)s %(asctime)s %(filename)s:%(lineno)d :%(funcName)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
 def get_logger(name, level=logging.INFO):
     """A command line logger."""
@@ -82,6 +87,6 @@ def get_logger(name, level=logging.INFO):
     logger.propagate = False
     ch = logging.StreamHandler()
     ch.setLevel(level)
-    ch.setFormatter(ColoredFormatter())
+    ch.setFormatter(PlainFormatter())
     logger.addHandler(ch)
     return logger

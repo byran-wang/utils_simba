@@ -219,14 +219,16 @@ def overlay_normal(raw_img, normal_tensor, depth_tensor, alpha):
     return out.clip(0, 255).astype(np.uint8), normal_vis
 
 
-def create_video(frame_dir: Path, output_video: Path, fps: int):
+def create_video(frame_dir: Path, output_video: Path, fps: int, glob_pattern: str = "*.png"):
     cmd = [
         "/usr/bin/ffmpeg",
         "-y",
         "-framerate",
         str(fps),
+        "-pattern_type",
+        "glob",
         "-i",
-        str(frame_dir / "%06d.png"),
+        str(frame_dir / glob_pattern),
         "-c:v",
         "libx264",
         "-profile:v",
